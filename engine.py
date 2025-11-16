@@ -1,4 +1,5 @@
 # engine.py
+import shared
 import multiprocessing as mp
 import copy
 import time
@@ -362,45 +363,45 @@ def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_eve
                     return value
         return value
 
-# ---------------------------
-# Worker task run in separate process per root move
-# ---------------------------
-def worker_task(from_sq, to_sq, board, maximizing_color, root_depth, return_dict, stop_event):
+# worker_task (selective-stop version)
+def worker_task(from_sq, to_sq, board, maximizing_color, root_depth, return_dict, worker_stop_event, master_stop_event):
     """
-    Apply the root move, then run minimax for depth-1 (since root move consumes one ply).
-    Saves evaluation into return_dict as return_dict["E2E4"] = score
+    Apply the root move, then run minimax for depth-1.
+    Worker listens to two events:
+      - worker_stop_event: this worker-only event (set by engine_search when user chooses a different move)
+      - master_stop_event: global (time limit / full abort)
     """
     try:
-        # quick abort check
-        if stop_event.is_set():
+        # quick abort checks
+        if worker_stop_event.is_set() or master_stop_event.is_set():
             return
         nb = simulate_move(board, from_sq, to_sq)
         # after root move, it's opponent's turn
         opp = "black" if maximizing_color == "white" else "white"
-        score = minimax(nb, maximizing_color, opp, root_depth - 1, -math.inf, math.inf, stop_event)
-        if not stop_event.is_set():
+        # minimax will check both events through the same master_stop_event,
+        # and we also pass a small wrapper that checks either event.
+        # we'll use master_stop_event inside minimax; worker_stop_event is checked here
+        score = minimax(nb, maximizing_color, opp, root_depth - 1, -math.inf, math.inf,
+                        stop_event=master_stop_event)
+        # worker_stop_event might have been set while minimax was running; ensure not storing stale results
+        if not worker_stop_event.is_set() and not master_stop_event.is_set():
             return_dict[f"{from_sq}{to_sq}"] = score
-    except Exception as e:
-        # ensure worker doesn't crash silently
+    except Exception:
+        # don't crash the worker silently; store a low score to mark failure
         return_dict[f"{from_sq}{to_sq}"] = -9999999
 
-# ---------------------------
-# Engine search orchestrator
-# ---------------------------
+
+# engine_search (selective termination)
 def engine_search(board, color, depth, user_move_queue=None, time_limit=None, max_workers=None):
     """
-    Run multiprocess search for `color` to `depth` plies.
-    - board: dict boarda
-    - color: 'white' or 'black' (engine side)
-    - depth: integer >= 1 (plies)
-    - user_move_queue: mp.Queue-like; if any item appears there, engine will stop and attempt to abort workers
-    - time_limit: optional seconds; if exceeded set stop_event
-    - max_workers: optional limit for concurrent worker processes (defaults to cpu_count)
-    Returns (best_from, best_to, best_score) or (None, None, None) if aborted/no result.
+    Multiprocess search that supports selective termination:
+      - When a user move (e.g. "E2E4") arrives via user_move_queue,
+        keep only the worker whose root move == "E2E4", stop others.
+      - If user's move doesn't match any root, stop all workers.
     """
     manager = mp.Manager()
     return_dict = manager.dict()
-    stop_event = mp.Event()
+    master_stop_event = mp.Event()   # global (time limit / full abort)
 
     # generate root legal moves for engine side
     legal = generate_legal_moves(board, color)
@@ -414,12 +415,22 @@ def engine_search(board, color, depth, user_move_queue=None, time_limit=None, ma
     if max_workers is None:
         max_workers = mp.cpu_count()
 
-    processes = []
-    # start a process per root move
+    # Start processes with their own worker_stop_event
+    processes = []               # list of Process
+    worker_events = {}           # move_key -> Event
+    proc_map = {}                # move_key -> Process
+
     for fr, to in roots:
-        p = mp.Process(target=worker_task, args=(fr, to, board, color, depth, return_dict, stop_event))
+        move_key = f"{fr}{to}"
+        worker_stop_event = mp.Event()
+        p = mp.Process(
+            target=worker_task,
+            args=(fr, to, board, color, depth, return_dict, worker_stop_event, master_stop_event)
+        )
         p.start()
         processes.append(p)
+        worker_events[move_key] = worker_stop_event
+        proc_map[move_key] = p
 
     start_time = time.time()
     try:
@@ -428,39 +439,51 @@ def engine_search(board, color, depth, user_move_queue=None, time_limit=None, ma
             alive = any(p.is_alive() for p in processes)
             if not alive:
                 break
-            # user interrupt
+
+            # user interrupt: selective stop logic
             if user_move_queue is not None:
-                # non-blocking check
                 try:
-                    # Throws if empty, but use get_nowait
-                    user_move = user_move_queue.get_nowait()
-                    # If user produced a move, we stop all workers (they consult stop_event)
-                    stop_event.set()
-                    break
+                    user_move = user_move_queue.get_nowait()  # non-blocking
+                    if user_move is not None:
+                        # normalize input (expect "E2E4")
+                        user_move_str = user_move.strip().upper()
+                        # If this user_move matches exactly one root worker, stop all others
+                        if user_move_str in worker_events:
+                            # stop every worker except the one matching user_move_str
+                            for key, evt in worker_events.items():
+                                if key != user_move_str:
+                                    evt.set()
+                            # continue to wait for the matching worker (or timeout)
+                            # note: do not set master_stop_event here
+                        else:
+                            # user move doesn't match any root – abort all workers (safe)
+                            master_stop_event.set()
+                        # we consumed the interrupt, continue monitoring until workers exit
                 except Exception:
                     pass
+
             # time limit
             if time_limit is not None and (time.time() - start_time) > time_limit:
-                stop_event.set()
+                master_stop_event.set()
                 break
+
             time.sleep(0.03)
     finally:
         # ensure processes terminate
-        for p in processes:
+        for key, p in proc_map.items():
             p.join(timeout=0.1)
             if p.is_alive():
                 try:
                     p.terminate()
                 except Exception:
                     pass
-        # small sleep to let return_dict fill
+        # give small window for return_dict writes to flush
         time.sleep(0.02)
 
-    # pick best move if any
+    # choose best available result
     if len(return_dict) == 0:
         return None, None, None
 
-    # return best move maximizing engine's evaluation (since evaluate signed to engine side)
     best_key, best_score = max(return_dict.items(), key=lambda kv: kv[1])
     best_from = best_key[:2]
     best_to = best_key[2:4]
