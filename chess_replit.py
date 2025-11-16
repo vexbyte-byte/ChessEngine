@@ -1,5 +1,7 @@
 import os
 import re
+import shared
+from EngineHandler import GetBestMove
 
 red = "\033[91m"
 d_green = "\033[32m"
@@ -479,7 +481,6 @@ class chessboard():
             
             try:
                 move = input(f"\n{b_green}[{cls.current_turn.upper()}] Enter your move (e.g., E2E4) or 'quit' to exit: {reset}").upper().strip()
-                
                 if move == "QUIT":
                     print(f"\n{yellow}Thanks for playing!{reset}")
                     break
@@ -519,9 +520,8 @@ class chessboard():
                 
                 cls.move_history.append(move_notation)
                 last_move = move_notation
-                
                 cls.current_turn = "black" if cls.current_turn == "white" else "white"
-                
+                # re-print board 
                 utils.clear_screen()
                 
             except ValueError as e:
@@ -531,6 +531,15 @@ class chessboard():
             except KeyboardInterrupt:
                 print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
                 break
+            
+            # update board arrangement globally:
+            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+            from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black")
+            print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
+
+            # handle bot's moves (undone)
+            bot_move_initial_piece_name = chessboard.current_board_arrangement[from_sq]
+            bot_target_move_piece_name = 
 
 if __name__ == "__main__":
     utils.clear_screen()
@@ -543,5 +552,5 @@ if __name__ == "__main__":
     print(f"  - Enter moves in format: E2E4 (from square to square)")
     print(f"  - Type 'quit' to exit the game\n")
     input(f"{yellow}Press Enter to start...{reset}")
-    
+    # mainloop
     chessboard.interactive_board()
