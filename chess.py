@@ -1,13 +1,14 @@
-# imports
 import os
 import re
-import ast
+import shared
+from EngineHandler import GetBestMove
 
-# define values
 red = "\033[91m"
 d_green = "\033[32m"
 b_green = "\033[92m"
 purple = "\033[35m"
+yellow = "\033[93m"
+reset = "\033[0m"
 
 class utils():
     def clear_screen():
@@ -18,13 +19,11 @@ class utils():
             pass
 
 class values():
-    # white
     white_pawn = 1
     white_rook = 5
     white_knight = 3
     white_bishop = 3
     white_queen = 9
-    # black
     black_pawn = 1
     black_rook = 5
     black_knight = 3
@@ -32,17 +31,19 @@ class values():
     black_queen = 9
 
 class legal_move_generator():
+    @staticmethod
     def square_to_coords(square):
-        col = ord(square[0].upper()) - ord('A')  # 'A' -> 0, 'B' -> 1 ...
-        row = int(square[1]) - 1                 # '1' -> 0, '8' -> 7 ...
+        col = ord(square[0].upper()) - ord('A')
+        row = int(square[1]) - 1
         return (col, row)
 
+    @staticmethod
     def coords_to_square(col, row):
         return chr(col + ord('A')) + str(row + 1)
 
+    @staticmethod
     def rook_moves(coordinate, board, legal_move_list, piece_name, color):
         col, row = legal_move_generator.square_to_coords(coordinate)
-        # directions: up, down, left, right
         directions = [(0, 1), (0, -1), (-1, 0), (1, 0)]
 
         for dcol, drow in directions:
@@ -51,33 +52,25 @@ class legal_move_generator():
                 c += dcol
                 r += drow
                 if not (0 <= c <= 7 and 0 <= r <= 7):
-                    break  # off the board
-
-                target_square = legal_move_generator.coords_to_square(c, r) # target square is the target coordination to move to, in coordination, eg. A7, B8
-                # print(target_square)
-                target_piece = board[target_square]
-                # print(target_piece) -> pieces possibly to be taken down, eg. black_knight, black_pawn
-
-                # Initialize the list if not already
-                legal_move_list.setdefault(coordinate, [])
-                if target_piece == "empty": # target piece is target coordination to move to, in names.
-                    legal_move_list[coordinate].append(target_square)
-                
-                elif target_piece.startswith(color):  # block by own piece
                     break
 
-                else:  # opponent piece: can capture
-                    if target_piece.endswith("king"):
-                        if color == 
+                target_square = legal_move_generator.coords_to_square(c, r)
+                target_piece = board[target_square]
+                legal_move_list.setdefault(coordinate, [])
+
+                if target_piece == "empty":
+                    legal_move_list[coordinate].append(target_square)
+                elif target_piece.startswith(color):
+                    break
+                else:
                     legal_move_list[coordinate].append(target_square)
                     break
 
         return legal_move_list
     
+    @staticmethod
     def knight_moves(coordinate, board, legal_move_list, piece_name, color):
         col, row = legal_move_generator.square_to_coords(coordinate)
-
-        # All 8 possible L-shaped moves
         knight_offsets = [
             (2, 1), (1, 2), (-1, 2), (-2, 1),
             (-2, -1), (-1, -2), (1, -2), (2, -1)
@@ -85,26 +78,23 @@ class legal_move_generator():
 
         for dc, dr in knight_offsets:
             c, r = col + dc, row + dr
-            if 0 <= c <= 7 and 0 <= r <= 7:  # on board
+            if 0 <= c <= 7 and 0 <= r <= 7:
                 target_square = legal_move_generator.coords_to_square(c, r)
                 target_piece = board[target_square]
-
-                # Initialize list if not already
                 legal_move_list.setdefault(coordinate, [])
 
                 if target_piece == "empty":
                     legal_move_list[coordinate].append(target_square)
-                elif target_piece.startswith(color):  # own piece blocks
+                elif target_piece.startswith(color):
                     continue
-                else:  # opponent piece can be captured
+                else:
                     legal_move_list[coordinate].append(target_square)
 
         return legal_move_list
     
+    @staticmethod
     def bishop_moves(coordinate, board, legal_move_list, piece_name, color):
         col, row = legal_move_generator.square_to_coords(coordinate)
-        
-        # diagonal directions: top-right, top-left, bottom-left, bottom-right
         directions = [(1, 1), (-1, 1), (-1, -1), (1, -1)]
         
         for dcol, drow in directions:
@@ -113,31 +103,28 @@ class legal_move_generator():
                 c += dcol
                 r += drow
                 if not (0 <= c <= 7 and 0 <= r <= 7):
-                    break  # off the board
+                    break
                 
                 target_square = legal_move_generator.coords_to_square(c, r)
                 target_piece = board[target_square]
-                
-                # initialize list if not exists
                 legal_move_list.setdefault(coordinate, [])
                 
                 if target_piece == "empty":
                     legal_move_list[coordinate].append(target_square)
-                elif target_piece.startswith(color):  # block by own piece
+                elif target_piece.startswith(color):
                     break
-                else:  # opponent piece can be captured
+                else:
                     legal_move_list[coordinate].append(target_square)
                     break
                     
         return legal_move_list
     
+    @staticmethod
     def queen_moves(coordinate, board, legal_move_list, piece_name, color):
         col, row = legal_move_generator.square_to_coords(coordinate)
-        
-        # all 8 directions: rook + bishop
         directions = [
-            (0, 1), (0, -1), (-1, 0), (1, 0),  # rook directions
-            (1, 1), (-1, 1), (-1, -1), (1, -1)  # bishop directions
+            (0, 1), (0, -1), (-1, 0), (1, 0),
+            (1, 1), (-1, 1), (-1, -1), (1, -1)
         ]
         
         for dcol, drow in directions:
@@ -146,70 +133,62 @@ class legal_move_generator():
                 c += dcol
                 r += drow
                 if not (0 <= c <= 7 and 0 <= r <= 7):
-                    break  # off the board
+                    break
                 
                 target_square = legal_move_generator.coords_to_square(c, r)
                 target_piece = board[target_square]
-                
-                # initialize list if not exists
                 legal_move_list.setdefault(coordinate, [])
                 
                 if target_piece == "empty":
                     legal_move_list[coordinate].append(target_square)
-                elif target_piece.startswith(color):  # block by own piece
+                elif target_piece.startswith(color):
                     break
-                else:  # opponent piece can be captured
+                else:
                     legal_move_list[coordinate].append(target_square)
                     break
                     
         return legal_move_list
     
+    @staticmethod
     def king_moves(coordinate, board, legal_move_list, piece_name, color):
         col, row = legal_move_generator.square_to_coords(coordinate)
-
-        # All 8 possible directions
         directions = [
-            (0, 1), (0, -1), (-1, 0), (1, 0),     # rook directions
-            (1, 1), (-1, 1), (-1, -1), (1, -1)    # bishop directions
+            (0, 1), (0, -1), (-1, 0), (1, 0),
+            (1, 1), (-1, 1), (-1, -1), (1, -1)
         ]
 
         for dcol, drow in directions:
             c, r = col + dcol, row + drow
-            if 0 <= c <= 7 and 0 <= r <= 7:  # on the board
+            if 0 <= c <= 7 and 0 <= r <= 7:
                 target_square = legal_move_generator.coords_to_square(c, r)
                 target_piece = board[target_square]
-
-                # initialize list if not exists
                 legal_move_list.setdefault(coordinate, [])
 
                 if target_piece == "empty":
                     legal_move_list[coordinate].append(target_square)
-                elif target_piece.startswith(color):  # own piece blocks
+                elif target_piece.startswith(color):
                     continue
-                else:  # opponent piece can be captured
+                else:
                     legal_move_list[coordinate].append(target_square)
 
         return legal_move_list
     
+    @staticmethod
     def pawn_moves(coordinate, board, legal_move_list, piece_name, color):
         col, row = legal_move_generator.square_to_coords(coordinate)
-
         legal_move_list.setdefault(coordinate, [])
 
         if color == "white":
-            # one step forward
             if row < 7:
                 forward_square = legal_move_generator.coords_to_square(col, row + 1)
                 if board[forward_square] == "empty":
                     legal_move_list[coordinate].append(forward_square)
 
-                # two steps forward if on starting rank
                 if row == 1:
                     double_forward = legal_move_generator.coords_to_square(col, row + 2)
                     if board[forward_square] == "empty" and board[double_forward] == "empty":
                         legal_move_list[coordinate].append(double_forward)
 
-            # captures
             for dcol in [-1, 1]:
                 capture_col = col + dcol
                 capture_row = row + 1
@@ -220,19 +199,16 @@ class legal_move_generator():
                         legal_move_list[coordinate].append(capture_square)
 
         elif color == "black":
-            # one step forward
             if row > 0:
                 forward_square = legal_move_generator.coords_to_square(col, row - 1)
                 if board[forward_square] == "empty":
                     legal_move_list[coordinate].append(forward_square)
 
-                # two steps forward if on starting rank
                 if row == 6:
                     double_forward = legal_move_generator.coords_to_square(col, row - 2)
                     if board[forward_square] == "empty" and board[double_forward] == "empty":
                         legal_move_list[coordinate].append(double_forward)
 
-            # captures
             for dcol in [-1, 1]:
                 capture_col = col + dcol
                 capture_row = row - 1
@@ -245,10 +221,27 @@ class legal_move_generator():
         return legal_move_list
     
     @staticmethod
-    def king_legal_move_during_check(legal_move_list, current_board_arrangement, white_king_location, black_king_location):
-        white_king_possible_move = legal_move_list[white_king_location]
-        print(white_king_possible_move)
-        # quit()
+    def pawn_attacks(coordinate, board, attack_list, piece_name, color):
+        col, row = legal_move_generator.square_to_coords(coordinate)
+        attack_list.setdefault(coordinate, [])
+
+        if color == "white":
+            for dcol in [-1, 1]:
+                capture_col = col + dcol
+                capture_row = row + 1
+                if 0 <= capture_col <= 7 and 0 <= capture_row <= 7:
+                    capture_square = legal_move_generator.coords_to_square(capture_col, capture_row)
+                    attack_list[coordinate].append(capture_square)
+
+        elif color == "black":
+            for dcol in [-1, 1]:
+                capture_col = col + dcol
+                capture_row = row - 1
+                if 0 <= capture_col <= 7 and 0 <= capture_row <= 7:
+                    capture_square = legal_move_generator.coords_to_square(capture_col, capture_row)
+                    attack_list[coordinate].append(capture_square)
+
+        return attack_list
 
 class chessboard():
     line_8 = ['A8', 'B8', 'C8', 'D8', 'E8', 'F8', 'G8', 'H8']
@@ -260,156 +253,304 @@ class chessboard():
     line_2 = ['A2', 'B2', 'C2', 'D2', 'E2', 'F2', 'G2', 'H2']
     line_1 = ['A1', 'B1', 'C1', 'D1', 'E1', 'F1', 'G1', 'H1']
 
-    # initial pieces:
     board_arrangement = {
-        'A8': 'black_rook',
-        'H8': 'black_rook',
-        'B8': 'black_knight',
-        'G8': 'black_knight',
-        'C8': 'black_bishop',
-        'F8': 'black_bishop',
-        'D8': 'black_queen',
-        'E8': 'black_king',
-        'A1': 'white_rook',
-        'H1': 'white_rook',
-        'B1': 'white_knight',
-        'G1': 'white_knight',
-        'C1': 'white_bishop',
-        'F1': 'white_bishop',
-        'D1': 'white_queen',
-        'E1': 'white_king',
-        'A7': 'black_pawn',
-        'A2': 'white_pawn',
-        'B7': 'black_pawn',
-        'B2': 'white_pawn',
-        'C7': 'black_pawn',
-        'C2': 'white_pawn',
-        'D7': 'black_pawn',
-        'D2': 'white_pawn',
-        'E7': 'black_pawn',
-        'E2': 'white_pawn',
-        'F7': 'black_pawn',
-        'F2': 'white_pawn',
-        'G7': 'black_pawn',
-        'G2': 'white_pawn',
-        'H7': 'black_pawn',
-        'H2': 'white_pawn',
-        'A3': 'empty',
-        'B3': 'empty',
-        'C3': 'empty',
-        'D3': 'empty',
-        'E3': 'empty',
-        'F3': 'empty',
-        'G3': 'empty',
-        'H3': 'empty',
-        'A4': 'empty',
-        'B4': 'empty',
-        'C4': 'empty',
-        'D4': 'empty',
-        'E4': 'empty',
-        'F4': 'empty',
-        'G4': 'empty',
-        'H4': 'empty',
-        'A5': 'empty',
-        'B5': 'empty',
-        'C5': 'empty',
-        'D5': 'empty',
-        'E5': 'empty',
-        'F5': 'empty',
-        'G5': 'empty',
-        'H5': 'empty',
-        'A6': 'empty',
-        'B6': 'empty',
-        'C6': 'empty',
-        'D6': 'empty',
-        'E6': 'empty',
-        'F6': 'empty',
-        'G6': 'empty',
-        'H6': 'empty',
+        'A8': 'black_rook', 'H8': 'black_rook',
+        'B8': 'black_knight', 'G8': 'black_knight',
+        'C8': 'black_bishop', 'F8': 'black_bishop',
+        'D8': 'black_queen', 'E8': 'black_king',
+        'A1': 'white_rook', 'H1': 'white_rook',
+        'B1': 'white_knight', 'G1': 'white_knight',
+        'C1': 'white_bishop', 'F1': 'white_bishop',
+        'D1': 'white_queen', 'E1': 'white_king',
+        'A7': 'black_pawn', 'B7': 'black_pawn', 'C7': 'black_pawn', 'D7': 'black_pawn',
+        'E7': 'black_pawn', 'F7': 'black_pawn', 'G7': 'black_pawn', 'H7': 'black_pawn',
+        'A2': 'white_pawn', 'B2': 'white_pawn', 'C2': 'white_pawn', 'D2': 'white_pawn',
+        'E2': 'white_pawn', 'F2': 'white_pawn', 'G2': 'white_pawn', 'H2': 'white_pawn',
+        'A3': 'empty', 'B3': 'empty', 'C3': 'empty', 'D3': 'empty',
+        'E3': 'empty', 'F3': 'empty', 'G3': 'empty', 'H3': 'empty',
+        'A4': 'empty', 'B4': 'empty', 'C4': 'empty', 'D4': 'empty',
+        'E4': 'empty', 'F4': 'empty', 'G4': 'empty', 'H4': 'empty',
+        'A5': 'empty', 'B5': 'empty', 'C5': 'empty', 'D5': 'empty',
+        'E5': 'empty', 'F5': 'empty', 'G5': 'empty', 'H5': 'empty',
+        'A6': 'empty', 'B6': 'empty', 'C6': 'empty', 'D6': 'empty',
+        'E6': 'empty', 'F6': 'empty', 'G6': 'empty', 'H6': 'empty',
     }
-
-    # keep track of king's location for legal move check:
-    white_king_location = 'E1'
-    black_king_location = 'E8'
-    # other logics:
-    current_board_arrangement = board_arrangement
-    occupied_square = []
-    legal_move_list = {}
     
-    def check_for_legal_move():
-        for coordinate in chessboard.current_board_arrangement:
-            # print(coordinate, current_board_arrangement[coordinate])
-            piece_name = chessboard.current_board_arrangement[coordinate]
-            color = "white" if piece_name.startswith("white") else "black"
-            # opponent = "black" if color == "white" else "white"
-            if piece_name.endswith("rook"):
-                legal_move_generator.rook_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
-            if piece_name.endswith("knight"):
-                legal_move_generator.knight_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
-            if piece_name.endswith("bishop"):
-                legal_move_generator.bishop_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
-            if piece_name.endswith("queen"):
-                legal_move_generator.queen_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
-            if piece_name.endswith("king"):
-                legal_move_generator.king_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
-            if piece_name.endswith("pawn"):
-                legal_move_generator.pawn_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
-            
-            # check for king's legal move (checks)
-            ...
-        print(chessboard.legal_move_list)
-        # quit()
-        legal_move_generator.king_legal_move_during_check(chessboard.legal_move_list, chessboard.current_board_arrangement, chessboard.white_king_location, chessboard.black_king_location)
-    # check_for_legal_move() # must be called outside class
+    current_board_arrangement = board_arrangement.copy()
+    current_turn = "white"
+    move_history = []
 
-    # mapping pieces to symbols
     symbols = {
-        'white_pawn': 'p', 'black_pawn': 'p',
-        'white_rook': 'r', 'black_rook': 'r',
-        'white_knight': 'h', 'black_knight': 'h',
-        'white_bishop': 'b', 'black_bishop': 'b',
-        'white_queen': 'q', 'black_queen': 'q',
-        'white_king': 'k', 'black_king': 'k',
+        'white_pawn': 'P', 'black_pawn': 'p',
+        'white_rook': 'R', 'black_rook': 'r',
+        'white_knight': 'N', 'black_knight': 'n',
+        'white_bishop': 'B', 'black_bishop': 'b',
+        'white_queen': 'Q', 'black_queen': 'q',
+        'white_king': 'K', 'black_king': 'k',
         'empty': '.'
     }
 
-    board_lines = [line_8, line_7, line_6, line_5, line_4, line_3, line_2, line_1]
     @classmethod
-    def interactive_board(cls):
+    def find_king(cls, color, board=None):
+        if board is None:
+            board = cls.current_board_arrangement
+        
+        for square, piece in board.items():
+            if piece == f"{color}_king":
+                return square
+        return None
+
+    @classmethod
+    def is_square_attacked(cls, square, by_color, board=None):
+        if board is None:
+            board = cls.current_board_arrangement
+        
+        temp_attack_moves = {}
+        for coordinate in board:
+            piece_name = board[coordinate]
+            if piece_name == "empty" or not piece_name.startswith(by_color):
+                continue
+            
+            if piece_name.endswith("rook"):
+                legal_move_generator.rook_moves(coordinate, board, temp_attack_moves, piece_name, by_color)
+            elif piece_name.endswith("knight"):
+                legal_move_generator.knight_moves(coordinate, board, temp_attack_moves, piece_name, by_color)
+            elif piece_name.endswith("bishop"):
+                legal_move_generator.bishop_moves(coordinate, board, temp_attack_moves, piece_name, by_color)
+            elif piece_name.endswith("queen"):
+                legal_move_generator.queen_moves(coordinate, board, temp_attack_moves, piece_name, by_color)
+            elif piece_name.endswith("king"):
+                legal_move_generator.king_moves(coordinate, board, temp_attack_moves, piece_name, by_color)
+            elif piece_name.endswith("pawn"):
+                legal_move_generator.pawn_attacks(coordinate, board, temp_attack_moves, piece_name, by_color)
+        
+        for moves in temp_attack_moves.values():
+            if square in moves:
+                return True
+        return False
+
+    @classmethod
+    def is_in_check(cls, color, board=None):
+        if board is None:
+            board = cls.current_board_arrangement
+        
+        king_square = cls.find_king(color, board)
+        if not king_square:
+            return False
+        
+        opponent = "black" if color == "white" else "white"
+        return cls.is_square_attacked(king_square, opponent, board)
+
+    @classmethod
+    def simulate_move(cls, from_square, to_square):
+        test_board = cls.current_board_arrangement.copy()
+        test_board[to_square] = test_board[from_square]
+        test_board[from_square] = "empty"
+        return test_board
+
+    @classmethod
+    def generate_legal_moves(cls, filter_for_check=True):
+        pseudo_legal_moves = {}
+        for coordinate in cls.current_board_arrangement:
+            piece_name = cls.current_board_arrangement[coordinate]
+            if piece_name == "empty":
+                continue
+                
+            color = "white" if piece_name.startswith("white") else "black"
+            
+            if piece_name.endswith("rook"):
+                legal_move_generator.rook_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
+            elif piece_name.endswith("knight"):
+                legal_move_generator.knight_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
+            elif piece_name.endswith("bishop"):
+                legal_move_generator.bishop_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
+            elif piece_name.endswith("queen"):
+                legal_move_generator.queen_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
+            elif piece_name.endswith("king"):
+                legal_move_generator.king_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
+            elif piece_name.endswith("pawn"):
+                legal_move_generator.pawn_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
+        
+        if not filter_for_check:
+            return pseudo_legal_moves
+        
+        legal_moves = {}
+        for from_square, to_squares in pseudo_legal_moves.items():
+            piece = cls.current_board_arrangement[from_square]
+            color = "white" if piece.startswith("white") else "black"
+            
+            legal_moves[from_square] = []
+            for to_square in to_squares:
+                test_board = cls.simulate_move(from_square, to_square)
+                if not cls.is_in_check(color, test_board):
+                    legal_moves[from_square].append(to_square)
+        
+        return legal_moves
+
+    @classmethod
+    def is_checkmate(cls, color):
+        if not cls.is_in_check(color):
+            return False
+        
+        legal_moves = cls.generate_legal_moves(filter_for_check=True)
+        for from_square, to_squares in legal_moves.items():
+            piece = cls.current_board_arrangement[from_square]
+            piece_color = "white" if piece.startswith("white") else "black"
+            if piece_color == color and len(to_squares) > 0:
+                return False
+        
+        return True
+
+    @classmethod
+    def is_stalemate(cls, color):
+        if cls.is_in_check(color):
+            return False
+        
+        legal_moves = cls.generate_legal_moves(filter_for_check=True)
+        for from_square, to_squares in legal_moves.items():
+            piece = cls.current_board_arrangement[from_square]
+            piece_color = "white" if piece.startswith("white") else "black"
+            if piece_color == color and len(to_squares) > 0:
+                return False
+        
+        return True
+
+    board_lines = [line_8, line_7, line_6, line_5, line_4, line_3, line_2, line_1]
+    
+    @classmethod
+    def display_board(cls, last_move=None, status_message=None):
         print(d_green)
         _count = 8
+        print("    +---+---+---+---+---+---+---+---+")
+        for line in cls.board_lines:
+            row_display = []
+            for square in line:
+                piece_symbol = cls.symbols[cls.current_board_arrangement[square]]
+                if cls.current_board_arrangement[square].startswith("white"):
+                    row_display.append(f"{b_green}{piece_symbol}{d_green}")
+                elif cls.current_board_arrangement[square].startswith("black"):
+                    row_display.append(f"{red}{piece_symbol}{d_green}")
+                else:
+                    row_display.append(piece_symbol)
+            
+            print(f" {purple}{_count}{d_green}  |", ' | '.join(row_display), "|")
+            print("    +---+---+---+---+---+---+---+---+")
+            _count -= 1
+        
+        print(f"{purple}      A   B   C   D   E   F   G   H{reset}")
+        
+        if last_move:
+            print(f"\n{yellow}Last move: {last_move}{reset}")
+        
+        if status_message:
+            print(f"\n{red}*** {status_message} ***{reset}")
+        
+        print(f"\n{yellow}Current turn: {cls.current_turn.upper()}{reset}")
+
+    @classmethod
+    def interactive_board(cls):
+        utils.clear_screen()
+        last_move = None
+        status_message = None
+        
         while True:
-            try:
-                print("    +---+---+---+---+---+---+---+---+")
-                for line in cls.board_lines:
-                    row = [cls.symbols[cls.current_board_arrangement[square]] for square in line]
-                    print(f" {purple}{_count}{d_green}  |", ' | '.join(row), "|")
-                    print("    +---+---+---+---+---+---+---+---+")
-                    _count -= 1
-                _count = 8
-                print(f"{purple}      A   B   C   D   E   F   G   H")
-
-                # input moves
-                move = input(f"\n{red}[Enter Your Move] {b_green}> ").upper()
-                if re.match(r"^[A-Z]\d[A-Z]\d$", move.replace(" ", "")):
-                    # print("Pattern matched!")
-                    initial_piece_location = move[:2] # coordination of piece (before moving), eg. E2
-                    initial_piece_to_move = chessboard.current_board_arrangement[initial_piece_location] # name of piece, eg. white_pawn
-                    target_coordination_to_move = move[2:] # coordination of piece to move (after moving), eg. E4
-                    # refresh legal move list
-                    chessboard.legal_move_list = {}
-                    chessboard.check_for_legal_move()
-                    if target_coordination_to_move in chessboard.legal_move_list[initial_piece_location]:
-                        chessboard.current_board_arrangement[initial_piece_location] = "empty"
-                        chessboard.current_board_arrangement[target_coordination_to_move] = initial_piece_to_move
-                else: raise ValueError()
-            except Exception as e: print(f"{red} Invalid move!", e)
-            finally:
+            if cls.is_checkmate(cls.current_turn):
                 utils.clear_screen()
-                print(move)
+                cls.display_board(last_move)
+                winner = "BLACK" if cls.current_turn == "white" else "WHITE"
+                print(f"\n{red}{'='*50}")
+                print(f"{red}CHECKMATE! {winner} WINS!{reset}")
+                print(f"{red}{'='*50}{reset}\n")
+                break
+            
+            if cls.is_stalemate(cls.current_turn):
+                utils.clear_screen()
+                cls.display_board(last_move)
+                print(f"\n{yellow}{'='*50}")
+                print(f"{yellow}STALEMATE! The game is a draw!{reset}")
+                print(f"{yellow}{'='*50}{reset}\n")
+                break
+            
+            if cls.is_in_check(cls.current_turn):
+                status_message = f"{cls.current_turn.upper()} IS IN CHECK!"
+            else:
+                status_message = None
+            
+            cls.display_board(last_move, status_message)
+            legal_moves = cls.generate_legal_moves()
+            
+            try:
+                move = input(f"\n{b_green}[{cls.current_turn.upper()}] Enter your move (e.g., E2E4) or 'quit' to exit: {reset}").upper().strip()
+                if move == "QUIT":
+                    print(f"\n{yellow}Thanks for playing!{reset}")
+                    break
+                
+                if not re.match(r"^[A-H][1-8][A-H][1-8]$", move):
+                    raise ValueError("Invalid format! Use format like E2E4")
+                
+                from_square = move[:2]
+                to_square = move[2:]
+                
+                piece = cls.current_board_arrangement[from_square]
+                
+                if piece == "empty":
+                    raise ValueError(f"No piece at {from_square}!")
+                
+                piece_color = "white" if piece.startswith("white") else "black"
+                if piece_color != cls.current_turn:
+                    raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {piece_color} piece.")
+                
+                if from_square not in legal_moves or to_square not in legal_moves[from_square]:
+                    if from_square in legal_moves:
+                        available = ', '.join(legal_moves[from_square]) if legal_moves[from_square] else "none"
+                        if cls.is_in_check(cls.current_turn):
+                            raise ValueError(f"You are in check! {piece} at {from_square} can move to: {available}")
+                        else:
+                            raise ValueError(f"Illegal move! {piece} at {from_square} can move to: {available}")
+                    else:
+                        raise ValueError(f"The {piece} at {from_square} has no legal moves!")
+                
+                captured_piece = cls.current_board_arrangement[to_square]
+                cls.current_board_arrangement[to_square] = piece
+                cls.current_board_arrangement[from_square] = "empty"
+                
+                move_notation = f"{from_square}{to_square}"
+                if captured_piece != "empty":
+                    move_notation += f" (captured {captured_piece})"
+                
+                cls.move_history.append(move_notation)
+                last_move = move_notation
+                cls.current_turn = "black" if cls.current_turn == "white" else "white"
+                # re-print board 
+                utils.clear_screen()
+                
+            except ValueError as e:
+                print(f"\n{red}Error: {e}{reset}")
+                input(f"\n{yellow}Press Enter to continue...{reset}")
+                utils.clear_screen()
+            except KeyboardInterrupt:
+                print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
+                break
+            
+            # update board arrangement globally:
+            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+            from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black")
+            print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
 
+            # handle bot's moves (undone)
+            bot_move_initial_piece_name = chessboard.current_board_arrangement[from_sq]
+            bot_target_move_piece_name = 
 
 if __name__ == "__main__":
     utils.clear_screen()
-    chessboard.check_for_legal_move()
+    print(f"{b_green}{'='*50}")
+    print(f"{'COMMAND-LINE CHESS GAME':^50}")
+    print(f"{'='*50}{reset}\n")
+    print(f"{yellow}How to play:{reset}")
+    print(f"  - White pieces are shown in {b_green}GREEN{reset}")
+    print(f"  - Black pieces are shown in {red}RED{reset}")
+    print(f"  - Enter moves in format: E2E4 (from square to square)")
+    print(f"  - Type 'quit' to exit the game\n")
+    input(f"{yellow}Press Enter to start...{reset}")
+    # mainloop
     chessboard.interactive_board()
