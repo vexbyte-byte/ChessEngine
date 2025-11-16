@@ -53,19 +53,22 @@ class legal_move_generator():
                 if not (0 <= c <= 7 and 0 <= r <= 7):
                     break  # off the board
 
-                target_square = legal_move_generator.coords_to_square(c, r)
+                target_square = legal_move_generator.coords_to_square(c, r) # target square is the target coordination to move to, in coordination, eg. A7, B8
                 # print(target_square)
                 target_piece = board[target_square]
                 # print(target_piece) -> pieces possibly to be taken down, eg. black_knight, black_pawn
 
                 # Initialize the list if not already
                 legal_move_list.setdefault(coordinate, [])
-
-                if target_piece == "empty":
+                if target_piece == "empty": # target piece is target coordination to move to, in names.
                     legal_move_list[coordinate].append(target_square)
+                
                 elif target_piece.startswith(color):  # block by own piece
                     break
+
                 else:  # opponent piece: can capture
+                    if target_piece.endswith("king"):
+                        if color == 
                     legal_move_list[coordinate].append(target_square)
                     break
 
@@ -240,6 +243,12 @@ class legal_move_generator():
                         legal_move_list[coordinate].append(capture_square)
 
         return legal_move_list
+    
+    @staticmethod
+    def king_legal_move_during_check(legal_move_list, current_board_arrangement, white_king_location, black_king_location):
+        white_king_possible_move = legal_move_list[white_king_location]
+        print(white_king_possible_move)
+        # quit()
 
 class chessboard():
     line_8 = ['A8', 'B8', 'C8', 'D8', 'E8', 'F8', 'G8', 'H8']
@@ -318,32 +327,40 @@ class chessboard():
         'G6': 'empty',
         'H6': 'empty',
     }
-    
+
+    # keep track of king's location for legal move check:
+    white_king_location = 'E1'
+    black_king_location = 'E8'
+    # other logics:
     current_board_arrangement = board_arrangement
     occupied_square = []
     legal_move_list = {}
     
-    for coordinate in current_board_arrangement:
-        # print(coordinate, current_board_arrangement[coordinate])
-        piece_name = current_board_arrangement[coordinate]
-        color = "white" if piece_name.startswith("white") else "black"
-        # opponent = "black" if color == "white" else "white"
-        if piece_name.endswith("rook"):
-            legal_move_generator.rook_moves(coordinate, current_board_arrangement, legal_move_list, piece_name, color)
-        if piece_name.endswith("knight"):
-            legal_move_generator.knight_moves(coordinate, current_board_arrangement, legal_move_list, piece_name, color)
-        if piece_name.endswith("bishop"):
-            legal_move_generator.bishop_moves(coordinate, current_board_arrangement, legal_move_list, piece_name, color)
-        if piece_name.endswith("queen"):
-            legal_move_generator.queen_moves(coordinate, current_board_arrangement, legal_move_list, piece_name, color)
-        if piece_name.endswith("king"):
-            legal_move_generator.king_moves(coordinate, current_board_arrangement, legal_move_list, piece_name, color)
-        if piece_name.endswith("pawn"):
-            legal_move_generator.pawn_moves(coordinate, current_board_arrangement, legal_move_list, piece_name, color)
-
-
-    print(legal_move_list)
-    quit()
+    def check_for_legal_move():
+        for coordinate in chessboard.current_board_arrangement:
+            # print(coordinate, current_board_arrangement[coordinate])
+            piece_name = chessboard.current_board_arrangement[coordinate]
+            color = "white" if piece_name.startswith("white") else "black"
+            # opponent = "black" if color == "white" else "white"
+            if piece_name.endswith("rook"):
+                legal_move_generator.rook_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
+            if piece_name.endswith("knight"):
+                legal_move_generator.knight_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
+            if piece_name.endswith("bishop"):
+                legal_move_generator.bishop_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
+            if piece_name.endswith("queen"):
+                legal_move_generator.queen_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
+            if piece_name.endswith("king"):
+                legal_move_generator.king_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
+            if piece_name.endswith("pawn"):
+                legal_move_generator.pawn_moves(coordinate, chessboard.current_board_arrangement, chessboard.legal_move_list, piece_name, color)
+            
+            # check for king's legal move (checks)
+            ...
+        print(chessboard.legal_move_list)
+        # quit()
+        legal_move_generator.king_legal_move_during_check(chessboard.legal_move_list, chessboard.current_board_arrangement, chessboard.white_king_location, chessboard.black_king_location)
+    # check_for_legal_move() # must be called outside class
 
     # mapping pieces to symbols
     symbols = {
@@ -375,15 +392,18 @@ class chessboard():
                 # input moves
                 move = input(f"\n{red}[Enter Your Move] {b_green}> ").upper()
                 if re.match(r"^[A-Z]\d[A-Z]\d$", move.replace(" ", "")):
-                    print("Pattern matched!")
-                    initial_piece_location = move[:2]
-                    initial_piece_to_move = chessboard.current_board_arrangement[initial_piece_location]
-                    chessboard.current_board_arrangement[initial_piece_location] = "empty"
-                    chessboard.current_board_arrangement[move[2:]] = initial_piece_to_move
-                else:
-                    raise ValueError()
-            except Exception as e:
-                print(f"{red} Invalid move!", e)
+                    # print("Pattern matched!")
+                    initial_piece_location = move[:2] # coordination of piece (before moving), eg. E2
+                    initial_piece_to_move = chessboard.current_board_arrangement[initial_piece_location] # name of piece, eg. white_pawn
+                    target_coordination_to_move = move[2:] # coordination of piece to move (after moving), eg. E4
+                    # refresh legal move list
+                    chessboard.legal_move_list = {}
+                    chessboard.check_for_legal_move()
+                    if target_coordination_to_move in chessboard.legal_move_list[initial_piece_location]:
+                        chessboard.current_board_arrangement[initial_piece_location] = "empty"
+                        chessboard.current_board_arrangement[target_coordination_to_move] = initial_piece_to_move
+                else: raise ValueError()
+            except Exception as e: print(f"{red} Invalid move!", e)
             finally:
                 utils.clear_screen()
                 print(move)
@@ -391,4 +411,5 @@ class chessboard():
 
 if __name__ == "__main__":
     utils.clear_screen()
+    chessboard.check_for_legal_move()
     chessboard.interactive_board()
