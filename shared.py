@@ -6,6 +6,6 @@
 
 # Variables
 # ---------
-current_board = {}   # your board dict
+current_board_arrangement = {}   # your board dict (dictionary)
 last_user_move = None
 engine_result = None
