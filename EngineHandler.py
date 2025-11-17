@@ -3,7 +3,7 @@ import shared
 import multiprocessing as mp
 
 
-def GetBestMove(board, color, depth=4, time_limit=10.0):
+def GetBestMove(board, color, depth=4, time_limit=100.0):
     task_q = mp.Queue()
     user_interrupt_q = mp.Queue()
     result_q = mp.Queue()
@@ -12,7 +12,8 @@ def GetBestMove(board, color, depth=4, time_limit=10.0):
     engine_proc.start()
 
     # send search task
-    task_q.put(("SEARCH", shared.current_board_arrangement.copy(), "black", 4, 10.0))
+    task_q.put(("SEARCH", shared.current_board_arrangement.copy(), "black", depth, None)) # You can replace None with time_limit (not recommended, as it causes errors)
+
 
     # wait for engine result
     res = result_q.get()  # blocks until engine finishes
