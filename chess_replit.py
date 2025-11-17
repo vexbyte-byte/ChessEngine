@@ -534,12 +534,29 @@ class chessboard():
             
             # update board arrangement globally:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+
+            # result returned by engine
             from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black")
             print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
 
-            # handle bot's moves (undone)
+            # white's turn:
+            cls.current_turn = "white"
+
+            # handle bot's moves (done)
+            # print(chessboard.current_board_arrangement[from_sq])
+            # quit()
+
+            # update current board
+            chessboard.current_board_arrangement = shared.current_board_arrangement.copy()
+            '''
             bot_move_initial_piece_name = chessboard.current_board_arrangement[from_sq]
-            bot_target_move_piece_name = 
+            chessboard.current_board_arrangement[from_sq] = "empty"
+            chessboard.current_board_arrangement[to_sq] = bot_move_initial_piece_name
+
+            # update the global board once again:
+            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+            '''
+            
 
 if __name__ == "__main__":
     utils.clear_screen()
