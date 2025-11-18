@@ -2,7 +2,6 @@ from engine import engine_process_main
 import shared
 import multiprocessing as mp
 
-
 def GetBestMove(board, color, depth=4, time_limit=100.0):
     task_q = mp.Queue()
     user_interrupt_q = mp.Queue()
