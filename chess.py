@@ -480,7 +480,7 @@ class chessboard():
             # white KING-SIDE castling
             if move == "E1G1":
                 # king havent moved (can castle)
-                if not chessboard.castling_rights['white_king_moved']:
+                if chessboard.castling_rights['white_king_moved']:
                     # kingside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['white_kingside']:
                         # check for open rank
@@ -494,11 +494,18 @@ class chessboard():
                                             chessboard.current_board_arrangement['F1'] = 'white_rook'
                                             chessboard.current_board_arrangement['G1'] = 'white_king'
                                             chessboard.current_board_arrangement['H1'] = 'empty'
+                                        else: raise ValueError("G1 under attack!")
+                                    else: raise ValueError("F1 under attack!")
+                                else: raise ValueError("E1 under attack!")
+                            else: raise ValueError("G1 not empty!")
+                        else: raise ValueError("F1 not empty!")
+                    else: raise ValueError("Rook Moved!")
+                else: raise ValueError("King Moved!")
             
             # white QUEEN-SIDE castling
             elif move == "E1C1":
                 # king havent moved (can castle)
-                if not chessboard.castling_rights['white_king_moved']:
+                if chessboard.castling_rights['white_king_moved']:
                     # queenside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['white_queenside']:
                         # check for open rank
@@ -513,11 +520,19 @@ class chessboard():
                                                 chessboard.current_board_arrangement['D1'] = 'white_rook'
                                                 chessboard.current_board_arrangement['C1'] = 'white_king'
                                                 chessboard.current_board_arrangement['A1'] = 'empty'
+                                            else: raise ValueError("C1 under attack!")
+                                        else: raise ValueError("D1 under attack!")
+                                    else: raise ValueError("E1 under attack!")
+                                else: raise ValueError("D1 not empty!")
+                            else: raise ValueError("C1 not empty!")
+                        else: raise ValueError("B1 not empty!")
+                    else: raise ValueError("Rook Moved!")
+                else: raise ValueError("King Moved!")
 
             # black KING-SIDE castling
             if move == "E8G8":
                 # king havent moved (can castle)
-                if not chessboard.castling_rights['black_king_moved']:
+                if chessboard.castling_rights['black_king_moved']:
                     # kingside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['black_kingside']:
                         # check for open rank
@@ -535,7 +550,7 @@ class chessboard():
             # black QUEEN-SIDE castling
             elif move == "E8C8":
                 # king havent moved (can castle)
-                if not chessboard.castling_rights['black_king_moved']:
+                if chessboard.castling_rights['black_king_moved']:
                     # queenside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['black_queenside']:
                         # check for open rank
@@ -550,9 +565,19 @@ class chessboard():
                                                 chessboard.current_board_arrangement['D8'] = 'black_rook'
                                                 chessboard.current_board_arrangement['C8'] = 'black_king'
                                                 chessboard.current_board_arrangement['A8'] = 'empty'
+                                            else: raise ValueError("C8 under attack!")
+                                        else: raise ValueError("D8 under attack!")
+                                    else: raise ValueError("E8 under attack!")
+                                else: raise ValueError("D8 not empty!")
+                            else: raise ValueError("C8 not empty!")
+                        else: raise ValueError("B8 not empty!")
+                    else: raise ValueError("Rook Moved!")
+                else: raise ValueError("King Moved!")
 
         # handle exception
-        except ValueError: print("cannot castle")
+        except ValueError as e: 
+            print(f'{red}[!]', e)
+            input(f'\n{yellow}Press Enter To Continue . . . ')
         except Exception as e: print(f"{red}[!]", e)
 
 
@@ -639,6 +664,7 @@ class chessboard():
                 cls.current_turn = "black" if cls.current_turn == "white" else "white"
                 # re-print board 
                 utils.clear_screen()
+                chessboard.display_board()
                 
             except ValueError as e:
                 print(f"\n{red}Error: {e}{reset}")
@@ -649,7 +675,10 @@ class chessboard():
             except KeyboardInterrupt:
                 print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
                 break
-            except KeyError: pass # to escape other checks
+            except KeyError: 
+                # re-print board 
+                utils.clear_screen()
+                chessboard.display_board()
             
             # update board arrangement globally:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
