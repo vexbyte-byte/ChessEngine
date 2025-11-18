@@ -286,15 +286,6 @@ class chessboard():
         # king moved
         'white_king_moved': False,
         'black_king_moved': False,
-
-        # rook moved
-        'white_rook_1_moved': False,
-        'black_rook_1_moved': False,
-        'white_rook_2_moved': False,
-        'black_rook_2_moved': False,
-
-        # attacked coordinates
-        'white_kingside_attacked': [''],
     }
     
     current_board_arrangement = board_arrangement.copy()
@@ -589,10 +580,8 @@ class chessboard():
                 print(f"{yellow}{'='*50}{reset}\n")
                 break
             
-            if cls.is_in_check(cls.current_turn):
-                status_message = f"{cls.current_turn.upper()} IS IN CHECK!"
-            else:
-                status_message = None
+            if cls.is_in_check(cls.current_turn): status_message = f"{cls.current_turn.upper()} IS IN CHECK!"
+            else: status_message = None
             
             cls.display_board(last_move, status_message)
             legal_moves = cls.generate_legal_moves()
@@ -623,16 +612,14 @@ class chessboard():
                 if from_square == 'H8': chessboard.castling_rights['black_kingside'] = False
 
                 # white castling
-                if move == "E1G1" or move == "E1C1":
+                if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
                     chessboard.handle_castle(move, from_square, to_square)
+                    raise KeyError()
                 
                 piece = cls.current_board_arrangement[from_square]
-                
                 if piece == "empty": raise ValueError(f"No piece at {from_square}!")
-                
                 piece_color = "white" if piece.startswith("white") else "black"
                 if piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {piece_color} piece.")
-                
                 if from_square not in legal_moves or to_square not in legal_moves[from_square]:
                     if from_square in legal_moves:
                         available = ', '.join(legal_moves[from_square]) if legal_moves[from_square] else "none"
@@ -657,9 +644,12 @@ class chessboard():
                 print(f"\n{red}Error: {e}{reset}")
                 input(f"\n{yellow}Press Enter to continue...{reset}")
                 utils.clear_screen()
+                cls.current_turn = "white"
+                continue
             except KeyboardInterrupt:
                 print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
                 break
+            except KeyError: pass # to escape other checks
             
             # update board arrangement globally:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
