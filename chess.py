@@ -18,14 +18,6 @@ class utils():
         except Exception as e:
             pass
 
-class IllegalMoveError(Exception):
-    def print_error():
-        """Custom exception for all illegal chess moves."""
-        print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
-        print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
-        print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
-        input('\nPress Enter To Continue . . . ')
-
 class values():
     white_pawn = 1
     white_rook = 5
@@ -714,7 +706,7 @@ class chessboard():
                             if piece_to_promote:
                                 if piece.endswith('pawn'):
                                     chessboard.current_board_arrangement[to_square] = f'white_{promotion_list[piece_to_promote]}'
-                            else: raise AssertionError()
+                            else: raise AssertionError('white')
 
                 # black
                 elif piece_color == 'black':
@@ -723,7 +715,7 @@ class chessboard():
                             if piece_to_promote:
                                 if piece.endswith('pawn'):
                                     chessboard.current_board_arrangement[to_square] = f'black_{promotion_list[piece_to_promote]}'
-                            else: raise AssertionError()
+                            else: raise AssertionError('black')
                 # reset
                 piece_to_promote = None
 
@@ -746,6 +738,18 @@ class chessboard():
                 chessboard.display_board()
                 print(f"{red}[!] {yellow}Illegal Move, cannot castle!")
                 input('\nPress Enter To Continue . . . ')
+                cls.current_turn = "white"
+                continue
+
+            except AssertionError as color:
+                utils.clear_screen()
+                chessboard.current_board_arrangement[to_square] = 'empty'
+                chessboard.current_board_arrangement[from_square] = f'{color}_pawn'
+                print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
+                print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
+                print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
+                input('\nPress Enter To Continue . . . ')
+                cls.current_turn = 'white'
                 continue
             
             # user exit game
