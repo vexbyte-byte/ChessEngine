@@ -585,6 +585,7 @@ class chessboard():
         except ValueError as e: 
             print(f'{red}[!]', e)
             input(f'\n{yellow}Press Enter To Continue . . . ')
+            return 'illegal move'
         except Exception as e: print(f"{red}[!]", e)
 
 
@@ -617,6 +618,11 @@ class chessboard():
             
             cls.display_board(last_move, status_message)
             legal_moves = cls.generate_legal_moves()
+
+            # reset squares under attack:
+            chessboard.white_current_square_under_attack = set()
+            chessboard.black_current_square_under_attack = set()
+            # generate squares under attack once-again:
             chessboard.check_current_squares_under_attack(legal_moves)
             # print(chessboard.white_current_square_under_attack)
             # print(chessboard.black_current_square_under_attack)
@@ -645,8 +651,10 @@ class chessboard():
 
                 # white castling
                 if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
-                    chessboard.handle_castle(move, from_square, to_square)
-                    raise KeyError()
+                    legal = chessboard.handle_castle(move, from_square, to_square)
+                    if not legal == 'illegal move':
+                        # skip other checks (smart move)
+                        raise KeyError()
                 
                 piece = cls.current_board_arrangement[from_square]
                 if piece == "empty": raise ValueError(f"No piece at {from_square}!")
