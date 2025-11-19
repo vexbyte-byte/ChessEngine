@@ -1,3 +1,4 @@
+# chess.py
 import os
 import re
 import shared
@@ -657,7 +658,6 @@ class chessboard():
                 if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
                     legal = chessboard.handle_castle(move, from_square, to_square)
                     if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
-                    else: continue
                 
                 # record for king moved (must be handled after handle castling)
                 if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
