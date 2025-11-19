@@ -1,4 +1,4 @@
-# engine.py (modified to support castling)
+# engine.py
 import shared
 import multiprocessing as mp
 import copy
