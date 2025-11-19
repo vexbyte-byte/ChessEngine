@@ -546,6 +546,13 @@ class chessboard():
                                             chessboard.current_board_arrangement['F8'] = 'black_rook'
                                             chessboard.current_board_arrangement['G8'] = 'black_king'
                                             chessboard.current_board_arrangement['H8'] = 'empty'
+                                        else: raise ValueError("G8 under attack!")
+                                    else: raise ValueError("F8 under attack!")
+                                else: raise ValueError("E8 under attack!")
+                            else: raise ValueError("G8 not empty!")
+                        else: raise ValueError("F8 not empty!")
+                    else: raise ValueError("Rook Moved!")
+                else: raise ValueError("King Moved!")
             
             # black QUEEN-SIDE castling
             elif move == "E8C8":
