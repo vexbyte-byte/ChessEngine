@@ -18,6 +18,14 @@ class utils():
         except Exception as e:
             pass
 
+class IllegalMoveError(Exception):
+    def print_error():
+        """Custom exception for all illegal chess moves."""
+        print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
+        print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
+        print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
+        input('\nPress Enter To Continue . . . ')
+
 class values():
     white_pawn = 1
     white_rook = 5
@@ -473,6 +481,14 @@ class chessboard():
             elif chessboard.current_board_arrangement[coordinate].startswith('white'):
                 chessboard.black_current_square_under_attack.update(square)
     
+
+    # handle pawn promotion
+    def handle_pawn_promotion(from_square, to_square):
+        if str(to_square).endswith('8'):
+            # promote pawn
+            ...
+
+    
     # handle castle from input
     def handle_castle(move, from_square, to_square):
         # eg. E2E4, from_square -> E2 : to_square -> E4
@@ -480,7 +496,7 @@ class chessboard():
             # white KING-SIDE castling
             if move == "E1G1":
                 # king havent moved (can castle)
-                if chessboard.castling_rights['white_king_moved']:
+                if not chessboard.castling_rights['white_king_moved']:
                     # kingside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['white_kingside']:
                         # check for open rank
@@ -505,7 +521,7 @@ class chessboard():
             # white QUEEN-SIDE castling
             elif move == "E1C1":
                 # king havent moved (can castle)
-                if chessboard.castling_rights['white_king_moved']:
+                if not chessboard.castling_rights['white_king_moved']:
                     # queenside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['white_queenside']:
                         # check for open rank
@@ -532,7 +548,7 @@ class chessboard():
             # black KING-SIDE castling
             if move == "E8G8":
                 # king havent moved (can castle)
-                if chessboard.castling_rights['black_king_moved']:
+                if not chessboard.castling_rights['black_king_moved']:
                     # kingside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['black_kingside']:
                         # check for open rank
@@ -557,7 +573,7 @@ class chessboard():
             # black QUEEN-SIDE castling
             elif move == "E8C8":
                 # king havent moved (can castle)
-                if chessboard.castling_rights['black_king_moved']:
+                if not chessboard.castling_rights['black_king_moved']:
                     # queenside rook havent moved (can castle kingside)
                     if chessboard.castling_rights['black_queenside']:
                         # check for open rank
@@ -634,14 +650,10 @@ class chessboard():
                     print(f"\n{yellow}Thanks for playing!{reset}")
                     break
                 
-                if not re.match(r"^[A-H][1-8][A-H][1-8]$", move): raise ValueError("Invalid format! Use format like E2E4")
+                if not re.match(r"^[A-H][1-8][A-H][1-8]([QNRB])?$", move): raise ValueError("Invalid format! Use format like E2E4")
                 
                 from_square = move[:2]
-                to_square = move[2:]
-
-                # record for king moved
-                if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
-                if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
+                to_square = move[2:4]
 
                 # record for rook moved
                 if from_square == 'A1': chessboard.castling_rights['white_queenside'] = False
@@ -652,11 +664,22 @@ class chessboard():
                 # white castling
                 if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
                     legal = chessboard.handle_castle(move, from_square, to_square)
-                    if not legal == 'illegal move':
-                        # skip other checks (smart move)
-                        raise KeyError()
+                    if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
+                    else: continue
                 
+                # record for king moved (must be handled after handle castling)
+                if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
+                if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
+                
+                # piece name
                 piece = cls.current_board_arrangement[from_square]
+
+                # handle pawn promotion
+                """if piece.endswith == 'pawn':
+                    chessboard.handle_pawn_promotion(from_square, to_square)
+                    continue"""
+
+                # legal move check
                 if piece == "empty": raise ValueError(f"No piece at {from_square}!")
                 piece_color = "white" if piece.startswith("white") else "black"
                 if piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {piece_color} piece.")
@@ -677,23 +700,58 @@ class chessboard():
                 cls.move_history.append(move_notation)
                 last_move = move_notation
                 cls.current_turn = "black" if cls.current_turn == "white" else "white"
+
+                # pawn promotion:
+                promotion_list = {'Q': "queen", 'N': "knight", 'R': "rook", 'B': "bishop"}
+                piece_to_promote = None
+
+                if len(move) == 5: piece_to_promote = move[4]
+
+                # white
+                if piece_color == 'white':
+                    if from_square.endswith('7'):
+                        if to_square.endswith('8'):
+                            if piece_to_promote:
+                                if piece.endswith('pawn'):
+                                    chessboard.current_board_arrangement[to_square] = f'white_{promotion_list[piece_to_promote]}'
+                            else: raise AssertionError()
+
+                # black
+                elif piece_color == 'black':
+                    if from_square.endswith('2'):
+                        if to_square.endswith('1'):
+                            if piece_to_promote:
+                                if piece.endswith('pawn'):
+                                    chessboard.current_board_arrangement[to_square] = f'black_{promotion_list[piece_to_promote]}'
+                            else: raise AssertionError()
+                # reset
+                piece_to_promote = None
+
                 # re-print board 
                 utils.clear_screen()
                 chessboard.display_board()
-                
+            
+            # illegal move handling
             except ValueError as e:
                 print(f"\n{red}Error: {e}{reset}")
                 input(f"\n{yellow}Press Enter to continue...{reset}")
                 utils.clear_screen()
                 cls.current_turn = "white"
                 continue
-            except KeyboardInterrupt:
-                print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
-                break
+
+            # skipped from above
             except KeyError: 
                 # re-print board 
                 utils.clear_screen()
                 chessboard.display_board()
+                print(f"{red}[!] {yellow}Illegal Move, cannot castle!")
+                input('\nPress Enter To Continue . . . ')
+                continue
+            
+            # user exit game
+            except KeyboardInterrupt:
+                print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
+                break
             
             # update board arrangement globally:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
