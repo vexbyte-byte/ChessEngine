@@ -15,9 +15,8 @@ class utils():
     def clear_screen():
         try:
             os.system("cls" if os.name == "nt" else "clear")
-            print("\033c", end="\033[92m")
-        except Exception as e:
-            pass
+            print("\033c", end=b_green)
+        except Exception as e: pass
 
 class values():
     white_pawn = 1
@@ -340,18 +339,15 @@ class chessboard():
                 legal_move_generator.pawn_attacks(coordinate, board, temp_attack_moves, piece_name, by_color)
         
         for moves in temp_attack_moves.values():
-            if square in moves:
-                return True
+            if square in moves: return True
         return False
 
     @classmethod
     def is_in_check(cls, color, board=None):
-        if board is None:
-            board = cls.current_board_arrangement
+        if board is None: board = cls.current_board_arrangement
         
         king_square = cls.find_king(color, board)
-        if not king_square:
-            return False
+        if not king_square: return False
         
         opponent = "black" if color == "white" else "white"
         return cls.is_square_attacked(king_square, opponent, board)
@@ -368,8 +364,7 @@ class chessboard():
         pseudo_legal_moves = {}
         for coordinate in cls.current_board_arrangement:
             piece_name = cls.current_board_arrangement[coordinate]
-            if piece_name == "empty":
-                continue
+            if piece_name == "empty": continue
                 
             color = "white" if piece_name.startswith("white") else "black"
             
@@ -386,8 +381,7 @@ class chessboard():
             elif piece_name.endswith("pawn"):
                 legal_move_generator.pawn_moves(coordinate, cls.current_board_arrangement, pseudo_legal_moves, piece_name, color)
         
-        if not filter_for_check:
-            return pseudo_legal_moves
+        if not filter_for_check: return pseudo_legal_moves
         
         legal_moves = {}
         for from_square, to_squares in pseudo_legal_moves.items():
@@ -404,29 +398,25 @@ class chessboard():
 
     @classmethod
     def is_checkmate(cls, color):
-        if not cls.is_in_check(color):
-            return False
+        if not cls.is_in_check(color): return False
         
         legal_moves = cls.generate_legal_moves(filter_for_check=True)
         for from_square, to_squares in legal_moves.items():
             piece = cls.current_board_arrangement[from_square]
             piece_color = "white" if piece.startswith("white") else "black"
-            if piece_color == color and len(to_squares) > 0:
-                return False
+            if piece_color == color and len(to_squares) > 0: return False
         
         return True
 
     @classmethod
     def is_stalemate(cls, color):
-        if cls.is_in_check(color):
-            return False
+        if cls.is_in_check(color): return False
         
         legal_moves = cls.generate_legal_moves(filter_for_check=True)
         for from_square, to_squares in legal_moves.items():
             piece = cls.current_board_arrangement[from_square]
             piece_color = "white" if piece.startswith("white") else "black"
-            if piece_color == color and len(to_squares) > 0:
-                return False
+            if piece_color == color and len(to_squares) > 0: return False
         
         return True
 
@@ -441,25 +431,17 @@ class chessboard():
             row_display = []
             for square in line:
                 piece_symbol = cls.symbols[cls.current_board_arrangement[square]]
-                if cls.current_board_arrangement[square].startswith("white"):
-                    row_display.append(f"{b_green}{piece_symbol}{d_green}")
-                elif cls.current_board_arrangement[square].startswith("black"):
-                    row_display.append(f"{red}{piece_symbol}{d_green}")
-                else:
-                    row_display.append(piece_symbol)
+                if cls.current_board_arrangement[square].startswith("white"): row_display.append(f"{b_green}{piece_symbol}{d_green}")
+                elif cls.current_board_arrangement[square].startswith("black"): row_display.append(f"{red}{piece_symbol}{d_green}")
+                else: row_display.append(piece_symbol)
             
             print(f" {purple}{_count}{d_green}  |", ' | '.join(row_display), "|")
             print("    +---+---+---+---+---+---+---+---+")
             _count -= 1
         
         print(f"{purple}      A   B   C   D   E   F   G   H{reset}")
-        
-        if last_move:
-            print(f"\n{yellow}Last move: {last_move}{reset}")
-        
-        if status_message:
-            print(f"\n{red}*** {status_message} ***{reset}")
-        
+        if last_move: print(f"\n{yellow}Last move: {last_move}{reset}")
+        if status_message: print(f"\n{red}*** {status_message} ***{reset}")
         print(f"\n{yellow}Current turn: {cls.current_turn.upper()}{reset}")
     
     # types: legal_moves = dict, current_square_under_attack = set
@@ -468,19 +450,8 @@ class chessboard():
             square = legal_moves[coordinate]
 
             # print("square:", square, coordinate)
-            if chessboard.current_board_arrangement[coordinate].startswith('black'):
-                chessboard.white_current_square_under_attack.update(square)
-            
-            elif chessboard.current_board_arrangement[coordinate].startswith('white'):
-                chessboard.black_current_square_under_attack.update(square)
-    
-
-    # handle pawn promotion
-    def handle_pawn_promotion(from_square, to_square):
-        if str(to_square).endswith('8'):
-            # promote pawn
-            ...
-
+            if chessboard.current_board_arrangement[coordinate].startswith('black'): chessboard.white_current_square_under_attack.update(square)
+            elif chessboard.current_board_arrangement[coordinate].startswith('white'): chessboard.black_current_square_under_attack.update(square)
     
     # handle castle from input
     def handle_castle(move, from_square, to_square):
@@ -658,18 +629,17 @@ class chessboard():
                 if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
                     legal = chessboard.handle_castle(move, from_square, to_square)
                     if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
+                    # record for king moved (must be handled after handle castling)
+                    if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
+                    if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
+                    raise AttributeError()
                 
-                # record for king moved (must be handled after handle castling)
+                # record for king moved once again (must be handled after handle castling)
                 if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
                 if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
                 
                 # piece name
                 piece = cls.current_board_arrangement[from_square]
-
-                # handle pawn promotion
-                """if piece.endswith == 'pawn':
-                    chessboard.handle_pawn_promotion(from_square, to_square)
-                    continue"""
 
                 # legal move check
                 if piece == "empty": raise ValueError(f"No piece at {from_square}!")
@@ -751,6 +721,10 @@ class chessboard():
                 input('\nPress Enter To Continue . . . ')
                 cls.current_turn = 'white'
                 continue
+
+            except AttributeError:
+                utils.clear_screen()
+                chessboard.display_board()
             
             # user exit game
             except KeyboardInterrupt:
