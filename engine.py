@@ -64,10 +64,11 @@ def infer_castling_rights_from_board(board):
 PROMO_MAP = {'Q': 'queen', 'R': 'rook', 'B': 'bishop', 'N': 'knight'}
 
 
-def simulate_move(board, from_sq, to_sq, castling_rights=None):
+def simulate_move(board, from_sq, to_sq, castling_rights=None, en_passant_target=None):
     """
-    Apply move and return (new_board, new_castling_rights).
+    Apply move and return (new_board, new_castling_rights, new_en_passant_target).
     Handles castling rook moves and updates castling rights when king/rook moves.
+    Handles en-passant captures and sets en_passant target after double-step pawn moves.
     NOTE: board is not modified in-place.
 
     to_sq may include a promotion suffix, e.g. "E8Q" where 'Q' is promotion piece.
@@ -90,7 +91,10 @@ def simulate_move(board, from_sq, to_sq, castling_rights=None):
         # shallow copy of nested dict
         new_rights = {s: dict(castling_rights.get(s, {})) for s in ("white", "black")}
 
-    # move piece (handle promotion)
+    # Prepare new en-passant target: reset unless set by a double pawn move below
+    new_en_passant = None
+
+    # Move piece (handle promotion)
     # clear origin
     newb[from_sq] = "empty"
     if promo and piece.endswith("pawn"):
@@ -99,6 +103,28 @@ def simulate_move(board, from_sq, to_sq, castling_rights=None):
         newb[real_to] = f"{color_label}_{promoted_type}"
     else:
         newb[real_to] = piece
+
+    # handle en-passant capture:
+    # If a pawn moves to the en_passant_target square (which is empty on the board),
+    # then remove the captured pawn which sits behind that square.
+    if piece.endswith("pawn") and en_passant_target is not None:
+        # Compare real_to with provided en_passant_target (must match exactly)
+        if real_to == en_passant_target and board.get(real_to) == "empty":
+            # determine which pawn is captured
+            tcol, trow = square_to_coords(real_to)
+            if piece.startswith("white"):
+                # white captures downward removed pawn at row -1 from target
+                captured_row = trow - 1
+                captured_sq = coords_to_square(tcol, captured_row)
+                # verify and remove
+                if in_bounds_colrow(tcol, captured_row) and board.get(captured_sq) == "black_pawn":
+                    newb[captured_sq] = "empty"
+            else:
+                # black captures upward removed pawn at row +1 from target
+                captured_row = trow + 1
+                captured_sq = coords_to_square(tcol, captured_row)
+                if in_bounds_colrow(tcol, captured_row) and board.get(captured_sq) == "white_pawn":
+                    newb[captured_sq] = "empty"
 
     # handle castling rook relocation (use original to_sq semantics for castling detection)
     if piece.endswith("king"):
@@ -155,7 +181,21 @@ def simulate_move(board, from_sq, to_sq, castling_rights=None):
         elif real_to == "A8":
             new_rights["black"]["Q"] = False
 
-    return newb, new_rights
+    # handle en-passant target creation: if the moved piece is a pawn and it moved two squares,
+    # set the en-passant target to the square it jumped over; otherwise None.
+    if piece.endswith("pawn"):
+        fcol, frow = square_to_coords(from_sq)
+        tcol, trow = square_to_coords(real_to)
+        if abs(trow - frow) == 2:
+            # square passed over
+            mid_row = (frow + trow) // 2
+            new_en_passant = coords_to_square(tcol, mid_row)
+        else:
+            new_en_passant = None
+    else:
+        new_en_passant = None
+
+    return newb, new_rights, new_en_passant
 
 
 # ---------------------------
@@ -262,7 +302,11 @@ def king_moves_from(square, board, color, castling_rights=None):
     return moves
 
 
-def pawn_moves_from(square, board, color):
+def pawn_moves_from(square, board, color, en_passant_target=None):
+    """
+    Pawn moves including en-passant pseudo-moves.
+    en_passant_target: square like "E3" where a capturing pawn would land (standard FEN-style).
+    """
     col, row = square_to_coords(square)
     moves = []
     # helper to append promotion variants when target is last rank
@@ -296,6 +340,23 @@ def pawn_moves_from(square, board, color):
                         append_promotions(sq)
                     else:
                         moves.append(sq)
+        # en-passant captures
+        if en_passant_target:
+            # en_passant_target is where capturing pawn would land (e.g. 'd6')
+            # check if it's diagonally adjacent
+            for dc in (-1, 1):
+                c = col + dc
+                r = row + 1
+                if in_bounds_colrow(c, r):
+                    target_sq = coords_to_square(c, r)
+                    if target_sq == en_passant_target:
+                        # ensure there's an opponent pawn on the square behind the target (the pawn that moved two)
+                        tcol, trow = square_to_coords(en_passant_target)
+                        captured_row = trow - 1  # black pawn sits one row below the target for white capture
+                        if in_bounds_colrow(tcol, captured_row):
+                            captured_sq = coords_to_square(tcol, captured_row)
+                            if board.get(captured_sq) == "black_pawn":
+                                moves.append(en_passant_target)
     else:
         # black pawns
         if row > 0:
@@ -319,6 +380,20 @@ def pawn_moves_from(square, board, color):
                         append_promotions(sq)
                     else:
                         moves.append(sq)
+        # en-passant captures for black
+        if en_passant_target:
+            for dc in (-1, 1):
+                c = col + dc
+                r = row - 1
+                if in_bounds_colrow(c, r):
+                    target_sq = coords_to_square(c, r)
+                    if target_sq == en_passant_target:
+                        tcol, trow = square_to_coords(en_passant_target)
+                        captured_row = trow + 1  # white pawn sits one row above the target for black capture
+                        if in_bounds_colrow(tcol, captured_row):
+                            captured_sq = coords_to_square(tcol, captured_row)
+                            if board.get(captured_sq) == "white_pawn":
+                                moves.append(en_passant_target)
     return moves
 
 
@@ -339,11 +414,11 @@ def pawn_attacks_from(square, board, color):
     return attacks
 
 
-def generate_pseudo_legal_moves(board, color, castling_rights=None):
+def generate_pseudo_legal_moves(board, color, castling_rights=None, en_passant_target=None):
     """
     Returns dict: {from_square: [to_square, ...], ...}
-    Only basic moves (en-passant still not implemented). Castling pseudo-moves are included
-    when castling_rights is provided; callers must still filter by attack squares to make them legal.
+    Includes en-passant pseudo-moves when en_passant_target is provided.
+    Castling pseudo-moves are included when castling_rights is provided; callers must still filter by attack squares to make them legal.
     """
     moves = {}
     for sq, piece in board.items():
@@ -360,7 +435,7 @@ def generate_pseudo_legal_moves(board, color, castling_rights=None):
         elif piece.endswith("king"):
             to_list = king_moves_from(sq, board, color, castling_rights)
         elif piece.endswith("pawn"):
-            to_list = pawn_moves_from(sq, board, color)
+            to_list = pawn_moves_from(sq, board, color, en_passant_target=en_passant_target)
         else:
             to_list = []
         if to_list:
@@ -448,13 +523,14 @@ def is_in_check(board, color):
 # Legal moves (filter pseudo-legal by check)
 # ---------------------------
 
-def generate_legal_moves(board, color, castling_rights=None):
-    pseudo = generate_pseudo_legal_moves(board, color, castling_rights)
+def generate_legal_moves(board, color, castling_rights=None, en_passant_target=None):
+    pseudo = generate_pseudo_legal_moves(board, color, castling_rights, en_passant_target=en_passant_target)
     legal = {}
     for fr, to_list in pseudo.items():
         legal_targets = []
         for to in to_list:
-            nb, new_rights = simulate_move(board, fr, to, castling_rights)
+            # simulate using current en_passant_target so en-passant capture is correctly handled
+            nb, new_rights, new_en_passant = simulate_move(board, fr, to, castling_rights, en_passant_target)
             # when castling pseudo-move was included we must ensure the king doesn't pass through or land on attacked squares
             if board.get(fr) and board[fr].endswith("king") and castling_rights is not None:
                 # Only need to check castling-specific squares if move is castling
@@ -516,11 +592,12 @@ def evaluate_board(board, perspective_color):
 # Minimax with alpha-beta
 # ---------------------------
 
-def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_event, castling_rights=None):
+def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_event, castling_rights=None, en_passant_target=None):
     """
     Returns evaluation score from perspective of maximizing_color.
     current_color is side to move in this node.
     castling_rights is the rights for the current board state and will be updated when moves are simulated.
+    en_passant_target is the current en-passant target square (or None).
     """
     if stop_event.is_set():
         # aborted by main thread/user
@@ -529,7 +606,7 @@ def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_eve
     if depth == 0:
         return evaluate_board(board, maximizing_color)
 
-    legal_moves = generate_legal_moves(board, current_color, castling_rights)
+    legal_moves = generate_legal_moves(board, current_color, castling_rights, en_passant_target=en_passant_target)
     if not legal_moves:
         # no legal moves: checkmate or stalemate
         if is_in_check(board, current_color):
@@ -546,8 +623,9 @@ def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_eve
             for to in tos:
                 if stop_event.is_set():
                     return 0
-                nb, new_rights = simulate_move(board, fr, to, castling_rights)
-                score = minimax(nb, maximizing_color, next_color, depth-1, alpha, beta, stop_event, castling_rights=new_rights)
+                nb, new_rights, new_en_passant = simulate_move(board, fr, to, castling_rights, en_passant_target)
+                score = minimax(nb, maximizing_color, next_color, depth-1, alpha, beta,
+                                stop_event=stop_event, castling_rights=new_rights, en_passant_target=new_en_passant)
                 value = max(value, score)
                 alpha = max(alpha, value)
                 if alpha >= beta:
@@ -559,8 +637,9 @@ def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_eve
             for to in tos:
                 if stop_event.is_set():
                     return 0
-                nb, new_rights = simulate_move(board, fr, to, castling_rights)
-                score = minimax(nb, maximizing_color, next_color, depth-1, alpha, beta, stop_event, castling_rights=new_rights)
+                nb, new_rights, new_en_passant = simulate_move(board, fr, to, castling_rights, en_passant_target)
+                score = minimax(nb, maximizing_color, next_color, depth-1, alpha, beta,
+                                stop_event=stop_event, castling_rights=new_rights, en_passant_target=new_en_passant)
                 value = min(value, score)
                 beta = min(beta, value)
                 if alpha >= beta:
@@ -569,7 +648,7 @@ def minimax(board, maximizing_color, current_color, depth, alpha, beta, stop_eve
 
 
 # worker_task (selective-stop version)
-def worker_task(from_sq, to_sq, board, maximizing_color, root_depth, return_dict, worker_stop_event, master_stop_event, castling_rights=None):
+def worker_task(from_sq, to_sq, board, maximizing_color, root_depth, return_dict, worker_stop_event, master_stop_event, castling_rights=None, en_passant_target=None):
     """
     Apply the root move, then run minimax for depth-1.
     Worker listens to two events:
@@ -580,11 +659,11 @@ def worker_task(from_sq, to_sq, board, maximizing_color, root_depth, return_dict
         # quick abort checks
         if worker_stop_event.is_set() or master_stop_event.is_set():
             return
-        nb, new_rights = simulate_move(board, from_sq, to_sq, castling_rights)
+        nb, new_rights, new_en_passant = simulate_move(board, from_sq, to_sq, castling_rights, en_passant_target)
         # after root move, it's opponent's turn
         opp = "black" if maximizing_color == "white" else "white"
         score = minimax(nb, maximizing_color, opp, root_depth - 1, -math.inf, math.inf,
-                        stop_event=master_stop_event, castling_rights=new_rights)
+                        stop_event=master_stop_event, castling_rights=new_rights, en_passant_target=new_en_passant)
         # worker_stop_event might have been set while minimax was running; ensure not storing stale results
         if not worker_stop_event.is_set() and not master_stop_event.is_set():
             return_dict[f"{from_sq}{to_sq}"] = score
@@ -594,10 +673,11 @@ def worker_task(from_sq, to_sq, board, maximizing_color, root_depth, return_dict
 
 
 # engine_search (selective termination)
-def engine_search(board, color, depth, user_move_queue=None, time_limit=None, max_workers=None, castling_rights=None):
+def engine_search(board, color, depth, user_move_queue=None, time_limit=None, max_workers=None, castling_rights=None, en_passant_target=None):
     """
     Multiprocess search that supports selective termination.
     castling_rights (optional): dict as produced by infer_castling_rights_from_board or your game controller.
+    en_passant_target (optional): square like "E3" representing current en-passant target (or None).
     """
     manager = mp.Manager()
     return_dict = manager.dict()
@@ -607,7 +687,7 @@ def engine_search(board, color, depth, user_move_queue=None, time_limit=None, ma
         castling_rights = infer_castling_rights_from_board(board)
 
     # generate root legal moves for engine side
-    legal = generate_legal_moves(board, color, castling_rights)
+    legal = generate_legal_moves(board, color, castling_rights, en_passant_target=en_passant_target)
     roots = []
     for fr, tos in legal.items():
         for to in tos:
@@ -628,7 +708,7 @@ def engine_search(board, color, depth, user_move_queue=None, time_limit=None, ma
         worker_stop_event = mp.Event()
         p = mp.Process(
             target=worker_task,
-            args=(fr, to, board, color, depth, return_dict, worker_stop_event, master_stop_event, castling_rights)
+            args=(fr, to, board, color, depth, return_dict, worker_stop_event, master_stop_event, castling_rights, en_passant_target)
         )
         p.start()
         processes.append(p)
@@ -660,8 +740,7 @@ def engine_search(board, color, depth, user_move_queue=None, time_limit=None, ma
                         else:
                             # user move doesn't match any root – abort all workers (safe)
                             master_stop_event.set()
-                except Exception:
-                    pass
+                except Exception: pass
 
             # time limit
             if time_limit is not None and (time.time() - start_time) > time_limit:
@@ -693,7 +772,8 @@ def engine_search(board, color, depth, user_move_queue=None, time_limit=None, ma
 
 # ---------------------------
 # Engine process wrapper: run in its own process, accept tasks via task_queue, return moves via result_queue
-# Task tuple format: ('SEARCH', board_dict, color, depth, time_limit [, castling_rights])
+# Task tuple format: ('SEARCH', board_dict, color, depth, time_limit [, castling_rights [, en_passant_target]])
+# Note: en_passant_target is optional and should be a square (e.g. "E3") or None.
 # ---------------------------
 def engine_process_main(task_queue, user_move_queue, result_queue):
     """
@@ -708,14 +788,20 @@ def engine_process_main(task_queue, user_move_queue, result_queue):
             continue
         cmd = task[0]
         if cmd == "SEARCH":
-            # support two formats: with or without castling_rights
+            # Support formats:
+            # ('SEARCH', board, color, depth, time_limit)
+            # ('SEARCH', board, color, depth, time_limit, castling_rights)
+            # ('SEARCH', board, color, depth, time_limit, castling_rights, en_passant_target)
+            castling_rights = None
+            en_passant_target = None
             if len(task) >= 6:
-                _, board, color, depth, time_limit, castling_rights = task
+                _, board, color, depth, time_limit, castling_rights = task[:6]
             else:
-                _, board, color, depth, time_limit = task
-                castling_rights = infer_castling_rights_from_board(board)
+                _, board, color, depth, time_limit = task[:5]
+            if len(task) >= 7:
+                en_passant_target = task[6]
             # We pass the same user_move_queue through so engine_search can monitor it
-            from_sq, to_sq, score = engine_search(board, color, depth, user_move_queue=user_move_queue, time_limit=time_limit, castling_rights=castling_rights)
+            from_sq, to_sq, score = engine_search(board, color, depth, user_move_queue=user_move_queue, time_limit=time_limit, castling_rights=castling_rights, en_passant_target=en_passant_target)
             result_queue.put(("RESULT", from_sq, to_sq, score))
         elif cmd == "QUIT":
             break
@@ -740,8 +826,8 @@ def engine_process_main(task_queue, user_move_queue, result_queue):
 #     engine_proc = mp.Process(target=engine_process_main, args=(task_q, user_interrupt_q, result_q))
 #     engine_proc.start()
 #
-#     # send a search task. Optionally include castling rights as 6th element:
-#     # task_q.put(("SEARCH", chessboard.current_board_arrangement.copy(), "black", 4, 10.0, castling_rights_dict))
+#     # send a search task. Optionally include castling rights as 6th element and en-passant as 7th:
+#     # task_q.put(("SEARCH", chessboard.current_board_arrangement.copy(), "black", 4, 10.0, castling_rights_dict, "E3"))
 #     task_q.put(("SEARCH", chessboard.current_board_arrangement.copy(), "black", 4, 10.0))  # depth=4, time_limit=10s
 #
 #     # Meanwhile main thread can continue: if user inputs a move, forward it to engine to interrupt:
