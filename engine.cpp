@@ -14,8 +14,47 @@
 #include <exception>
 #include <any>
 
-
 using namespace std;
+using BoardMap = map<string, string>;
+
+// ----------------------
+// Thread-safe queue
+// ----------------------
+
+template<typename T>
+class ThreadSafeQueue {
+private:
+    queue<T> q;
+    mutable mutex mtx;
+
+public:
+    ThreadSafeQueue() {}
+
+    void push(const T &value) {
+        lock_guard<mutex> lock(mtx);
+        q.push(value);
+    }
+
+    // Non-blocking pop
+    bool try_pop(T &value) {
+        lock_guard<mutex> lock(mtx);
+        if (q.empty()) return false;
+        value = q.front();
+        q.pop();
+        return true;
+    }
+
+    size_t size() const {
+        lock_guard<mutex> lock(mtx);
+        return q.size();
+    }
+
+    bool empty() const {
+        lock_guard<mutex> lock(mtx);
+        return q.empty();
+    }
+};
+
 
 // # ---------------------------
 // # Utilities: board helpers
@@ -1306,7 +1345,10 @@ void engine_process_main(
 ) {
     while (true) {
         // blocking wait for a task
-        vector<any> task = task_queue->pop();
+        vector<any> task;
+        while (!task_queue->try_pop(task)) {
+            this_thread::sleep_for(chrono::milliseconds(10)); // short pause
+        }
 
         // if task is empty, loop again
         if (task.empty()) continue;
