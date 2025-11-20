@@ -19,6 +19,13 @@ class utils():
         except Exception as e: pass
 
 class values():
+    # self values
+    depth = 4
+    bot_from_square = None
+    bot_to_square = None
+    after_en_passant = None
+
+    # other values
     white_pawn = 1
     white_rook = 5
     white_knight = 3
@@ -567,7 +574,21 @@ class chessboard():
             input(f'\n{yellow}Press Enter To Continue . . . ')
             return 'illegal move'
         except Exception as e: print(f"{red}[!]", e)
+    
+    def horizontal_neighbors(square):
+        file = square[0].upper()  # 'E'
+        rank = square[1]           # '5'
+        neighbors = []
 
+        # Left neighbor
+        if file > 'A':
+            neighbors.append(chr(ord(file) - 1) + rank)
+
+        # Right neighbor
+        if file < 'H':
+            neighbors.append(chr(ord(file) + 1) + rank)
+
+        return neighbors
 
     @classmethod
     def interactive_board(cls):
@@ -619,6 +640,65 @@ class chessboard():
                 from_square = move[:2]
                 to_square = move[2:4]
 
+                # piece name
+                piece = cls.current_board_arrangement[from_square]
+                # piece color (our move, not the bot's move)
+                piece_color = "white" if piece.startswith("white") else "black"
+
+                # temporary (debugging purpose only)
+                # values.after_en_passant = 'E6' # temporary only.
+                # values.bot_to_square = 'E5' # this is where the bot move his pawn to, temporary only.
+                # values.bot_from_square = 'E7'
+
+                # handle En-passant:
+                if piece.endswith('pawn'):
+                    # user playing as white
+                    if piece_color == 'white': 
+                        # we know user wants to en-passant (REPLACE == WITH != LATER)
+                        if from_square[0] != to_square[0]: # check if pawn moved to different file
+                            if from_square[1] == '5': 
+                                # values.after_en_passant is where we can En-passant to.
+                                # values.after_en_passant is a type (coordinate): eg. E6
+                                if values.after_en_passant:
+                                    if to_square == values.after_en_passant:
+                                        if values.bot_from_square[1] == '7':
+                                            if values.bot_to_square[1] == '5':
+                                                neighbor = chessboard.horizontal_neighbors(values.bot_to_square)
+                                                if from_square in neighbor:
+                                                    chessboard.current_board_arrangement[to_square] = 'white_pawn'
+                                                    chessboard.current_board_arrangement[from_square] = 'empty'
+                                                    # remove captured pawn
+                                                    chessboard.current_board_arrangement[values.bot_to_square] = 'empty'
+                    
+                    elif piece_color == 'black':
+                        # we know user wants to en-passant (REPLACE == WITH != LATER)
+                        if from_square[0] != to_square[0]: # check if pawn moved to different file
+                            if from_square[1] == '4':
+                                # values.after_en_passant is where we can En-passant to.
+                                # values.after_en_passant is a type (coordinate): eg. E6
+                                if values.after_en_passant:
+                                    if to_square == values.after_en_passant:
+                                        if values.bot_from_square[1] == '2':
+                                            if values.bot_to_square[1] == '4':
+                                                neighbor = chessboard.horizontal_neighbors(values.bot_to_square)
+                                                if from_square in neighbor:
+                                                    chessboard.current_board_arrangement[to_square] = 'black_pawn'
+                                                    chessboard.current_board_arrangement[from_square] = 'empty'
+                                                    # remove captured pawn
+                                                    chessboard.current_board_arrangement[values.bot_to_square] = 'empty'
+                
+                
+                # print(chessboard.horizontal_neighbors(values.after_en_passant))
+
+
+                """
+                # handle En-passant:
+                for piece_coordinates in chessboard.current_board_arrangement:
+                    if piece_color == 'white':
+                        if values.after_en_passant: # values.after_en_passant is a type (coordinate): eg. E4
+                            if chessboard.current_board_arrangement[values.after_en_passant].startswith('black'):
+                                ..."""
+
                 # record for rook moved
                 if from_square == 'A1': chessboard.castling_rights['white_queenside'] = False
                 if from_square == 'H1': chessboard.castling_rights['white_kingside'] = False
@@ -637,13 +717,9 @@ class chessboard():
                 # record for king moved once again (must be handled after handle castling)
                 if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
                 if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
-                
-                # piece name
-                piece = cls.current_board_arrangement[from_square]
 
                 # legal move check
                 if piece == "empty": raise ValueError(f"No piece at {from_square}!")
-                piece_color = "white" if piece.startswith("white") else "black"
                 if piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {piece_color} piece.")
                 if from_square not in legal_moves or to_square not in legal_moves[from_square]:
                     if from_square in legal_moves:
@@ -734,12 +810,33 @@ class chessboard():
             # update board arrangement globally:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
 
-            # result returned by engine
-            from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black")
+            # result returned by engines
+            from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black", values.depth)
             print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
 
             # white's turn:
             cls.current_turn = "white"
+
+            # handle En-passant
+            bot_moved_piece_name = chessboard.current_board_arrangement[from_sq] # -> e.g. black_pawn
+
+            if bot_moved_piece_name.endswith('pawn'):
+                # bot as black:
+                if bot_moved_piece_name.startswith('black'):
+                    if from_sq[1] == '7': # eg. E7
+                        if to_sq[1] == '5': # eg. E5
+                            values.after_en_passant = f'{to_sq[0]}6' # example: to_sq: eg. E5
+                            values.bot_to_square = to_sq
+                            values.bot_from_square = from_sq
+                            
+                # bot as white:
+                elif bot_moved_piece_name.startswith('white'):
+                    if from_sq[1] == '2': # eg. E2
+                        if to_sq[1] == '4': # eg. E4
+                            values.after_en_passant = f'{to_sq[0]}3'
+                            values.bot_to_square = to_sq
+                            values.bot_from_square = from_sq
+
 
             # handle bot's moves (done)
             # print(chessboard.current_board_arrangement[from_sq])
