@@ -1,7 +1,5 @@
 # engine.py
-import shared
 import multiprocessing as mp
-import copy
 import time
 import math
 
