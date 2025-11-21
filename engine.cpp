@@ -14,6 +14,9 @@
 #include <exception>
 #include <any>
 #include <queue>
+// #include <json/json.h>      // If using JsonCpp
+#include <cstring>          // <- FIX for strcpy
+
 
 using namespace std;
 using BoardMap = map<string, string>;
@@ -1487,7 +1490,133 @@ void engine_process_main(
     } // while true
 }
 
-int main() {
-    // your engine code
-    return 0;
+// --------------
+BoardMap parseBoard(const std::string &json_str) {
+    BoardMap board;
+    std::string key, value;
+    bool in_key = false, in_value = false;
+    bool reading_key = true;
+
+    for (size_t i = 0; i < json_str.size(); i++) {
+        char c = json_str[i];
+
+        // detect quote start
+        if (c == '"') {
+            if (!in_key && !in_value) {
+                // start reading
+                if (reading_key) in_key = true;
+                else in_value = true;
+            }
+            else {
+                // end reading
+                if (in_key) {
+                    in_key = false;
+                } else if (in_value) {
+                    in_value = false;
+                    // finished reading value → store pair
+                    board[key] = value;
+                    key.clear();
+                    value.clear();
+                }
+                reading_key = !reading_key; // toggle between key and value
+            }
+            continue;
+        }
+
+        // collect chars
+        if (in_key) key += c;
+        if (in_value) value += c;
+    }
+
+    return board;
 }
+
+extern "C" __declspec(dllexport)
+void get_best_move(
+    const char* board_json,
+    const char* color,
+    int depth,
+    char* out_from,
+    char* out_to,
+    double* out_score
+) {
+    // parse board json
+    BoardMap board = parseBoard(std::string(board_json));
+
+    auto [from_sq, to_sq, score] = engine_search(
+        board,
+        std::string(color),
+        depth,
+        nullptr,
+        -1.0,
+        0,
+        nullptr,
+        nullptr
+    );
+
+    strcpy(out_from, from_sq.c_str());
+    strcpy(out_to, to_sq.c_str());
+    *out_score = score;
+}
+
+
+/*
+extern "C" __declspec(dllexport)
+void get_best_move(
+    const char* board_json,   // 64 items serialized
+    const char* color,        // "white" / "black"
+    int depth,
+    char* out_from,
+    char* out_to,
+    double* out_score
+) {
+    // Parse board_json into BoardMap
+    BoardMap board = parseBoard(board_json);
+
+    auto [from_sq, to_sq, score] = search_best_move(board, color, depth);
+
+    strcpy(out_from, from_sq.c_str());
+    strcpy(out_to, to_sq.c_str());
+    *out_score = score;
+}
+*/
+
+
+/*
+extern "C" __declspec(dllexport)
+void get_best_move(
+    const char* board_json,
+    const char* color,
+    int depth,
+    char* out_from,
+    char* out_to,
+    double* out_score
+) {
+    // 1. Parse board JSON into C++ BoardMap
+    BoardMap board = parseBoard(board_json);
+
+    // 2. Make C++ string from color
+    std::string col = color;
+
+    // 3. Run the engine
+    auto result = engine_search(
+        board,
+        col,
+        depth,
+        nullptr,      // no user interrupt queue
+        -1.0,         // no time limit
+        0,            // default workers
+        nullptr,      // castling rights (auto infer)
+        nullptr       // en-passant
+    );
+
+    std::string from_sq = std::get<0>(result);
+    std::string to_sq   = std::get<1>(result);
+    double score        = std::get<2>(result);
+
+    // 4. Copy results back into Python buffers
+    strcpy(out_from, from_sq.c_str());
+    strcpy(out_to, to_sq.c_str());
+    *out_score = score;
+}
+*/
