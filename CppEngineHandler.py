@@ -1,7 +1,10 @@
 import ctypes
 import json
+import shared
+import os
 
-engine = ctypes.CDLL("./engine.dll")
+user = os.getlogin()
+engine = ctypes.CDLL(fr"C:\Users\{user}\AppData\Local\Python\Chess\engine.dll")
 
 engine.get_best_move.argtypes = [
     ctypes.c_char_p,
@@ -30,4 +33,14 @@ def GetBestMove(board, color, depth=4):
         ctypes.byref(score)
     )
 
-    return from_buf.value.decode(), to_buf.value.decode(), score.value
+    from_sq = from_buf.value.decode()
+    to_sq = to_buf.value.decode()
+
+    # --- update shared.py board ---
+    print(from_sq)
+    print(to_sq)
+    piece = shared.current_board_arrangement[from_sq]
+    shared.current_board_arrangement[to_sq] = piece
+    shared.current_board_arrangement[from_sq] = "empty"
+
+    return from_sq, to_sq, score.value
