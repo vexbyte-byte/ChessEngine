@@ -1,0 +1,51 @@
+# ideas
+
+things to implement:
+
+1. Castling (done)
+    - check for king/rook moved
+    - check for king in check
+    - check for specific squares is under attack
+    - check for empty spaces on rank 1 or rank 8
+
+2. Pawn Promotion (half done)
+    - Queen
+    - Rook
+    - Bishop
+    - Knight
+
+3. En-passant
+    - must be next to each other
+    - black: rank 4, white: rank 5
+    - only given 1 chance, if didnt en-passant, no more on next moved
+    - only pawns
+
+
+g++ compile:
+------------
+g++ -std=c++17 -O2 -shared -o engine.dll engine.cpp -Wl,--out-implib,libengine.a
+g++ -std=c++17 -O2 -shared -o engine.dll engine.cpp -static-libgcc -static-libstdc++ -Wl,--out-implib,libengine.a
+
+compile:
+--------
+- cl /O2 /EHsc /std:c++17 /LD engine.cpp /Fe:engine.dll
+
+- cl /O2 /EHsc /std:c++17 /LD Replit_ChessEngine.cpp /Fe:engine.dll
+
+#include <string>
+#include <unordered_map>
+#include <cstring>   // for strcpy
+
+cd C:\Users\Wei Jie\AppData\Local\Python\Chess && cl /O2 /EHsc /std:c++17 /LD engine.cpp /Fe:engine.dll
+
+
+# replit recommendations
+Compiler flags (-O3, -march=native, -flto) → 1.3-2x faster
+Vector reserves (prevent memory reallocations) → 1.2-1.4x faster
+Inline functions (eliminate call overhead) → 1.1-1.2x faster
+String pre-allocation → 1.1-1.2x faster
+Const keywords → minor improvement
+Pass-by-reference audit → 0-1.2x faster (if any are missing)
+Expected realistic speedup: 2-3.5x
+
+changes: line 167
