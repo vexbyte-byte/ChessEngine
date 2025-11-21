@@ -746,22 +746,23 @@ class chessboard():
                 if len(move) == 5: piece_to_promote = move[4]
 
                 # white
-                if piece_color == 'white':
-                    if from_square.endswith('7'):
-                        if to_square.endswith('8'):
-                            if piece_to_promote:
-                                if piece.endswith('pawn'):
-                                    chessboard.current_board_arrangement[to_square] = f'white_{promotion_list[piece_to_promote]}'
-                            else: raise AssertionError('white')
+                if piece.endswith('pawn'):
+                    if piece_color == 'white':
+                        if from_square.endswith('7'):
+                            if to_square.endswith('8'):
+                                if piece_to_promote:
+                                    if piece.endswith('pawn'):
+                                        chessboard.current_board_arrangement[to_square] = f'white_{promotion_list[piece_to_promote]}'
+                                else: raise AssertionError('white')
 
-                # black
-                elif piece_color == 'black':
-                    if from_square.endswith('2'):
-                        if to_square.endswith('1'):
-                            if piece_to_promote:
-                                if piece.endswith('pawn'):
-                                    chessboard.current_board_arrangement[to_square] = f'black_{promotion_list[piece_to_promote]}'
-                            else: raise AssertionError('black')
+                    # black
+                    elif piece_color == 'black':
+                        if from_square.endswith('2'):
+                            if to_square.endswith('1'):
+                                if piece_to_promote:
+                                    if piece.endswith('pawn'):
+                                        chessboard.current_board_arrangement[to_square] = f'black_{promotion_list[piece_to_promote]}'
+                                else: raise AssertionError('black')
                 # reset
                 piece_to_promote = None
 
@@ -789,7 +790,7 @@ class chessboard():
 
             except AssertionError as color:
                 utils.clear_screen()
-                chessboard.current_board_arrangement[to_square] = 'empty'
+                chessboard.current_board_arrangement[to_square] = captured_piece
                 chessboard.current_board_arrangement[from_square] = f'{color}_pawn'
                 print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
                 print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
@@ -812,6 +813,7 @@ class chessboard():
 
             # result returned by engines
             from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black", values.depth)
+            utils.clear_screen()
             print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
 
             # white's turn:
