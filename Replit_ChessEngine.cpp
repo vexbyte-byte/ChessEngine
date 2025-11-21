@@ -1,6 +1,6 @@
 // Optimized C++ Chess Engine - Major Performance Improvements
 // Replaces map<string,string> with array-based representation for 10-50x speedup
-
+#include <map>
 #include <thread>
 #include <chrono>
 #include <cmath>
@@ -15,6 +15,11 @@
 #include <queue>
 #include <unordered_map>
 #include <cstring>
+
+#include <cctype>
+
+// #include <nlohmann/json.hpp>
+// #include "engine.cpp" // or wherever engine_search_legacy is declared
 
 using namespace std;
 
@@ -103,7 +108,7 @@ inline string square_to_string(int sq) {
 // Piece type helpers
 inline bool is_white(Piece p) { return p >= W_PAWN && p <= W_KING; }
 inline bool is_black(Piece p) { return p >= B_PAWN && p <= B_QUEEN; }
-inline bool is_empty(Piece p) { return p == EMPTY; }
+inline bool is_piece_empty(Piece p) { return p == EMPTY; }
 inline bool is_color(Piece p, bool white) { return white ? is_white(p) : is_black(p); }
 
 inline int piece_type(Piece p) {
@@ -165,7 +170,7 @@ void generate_sliding_moves(const Board& board, int from, const int dirs[][2], i
             int to = make_square(f, r);
             Piece target = board[to];
             
-            if (is_empty(target)) {
+            if (is_piece_empty(target)) {
                 moves.emplace_back(from, to);
             } else if (is_color(target, !white)) {
                 moves.emplace_back(from, to);
@@ -193,7 +198,7 @@ void generate_knight_moves(const Board& board, int from, bool white, vector<Move
             int to = make_square(f, r);
             Piece target = board[to];
             
-            if (is_empty(target) || is_color(target, !white)) {
+            if (is_piece_empty(target) || is_color(target, !white)) {
                 moves.emplace_back(from, to);
             }
         }
@@ -215,7 +220,7 @@ void generate_king_moves(const Board& board, int from, bool white, vector<Move>&
             int to = make_square(f, r);
             Piece target = board[to];
             
-            if (is_empty(target) || is_color(target, !white)) {
+            if (is_piece_empty(target) || is_color(target, !white)) {
                 moves.emplace_back(from, to);
             }
         }
@@ -226,25 +231,25 @@ void generate_king_moves(const Board& board, int from, bool white, vector<Move>&
         if (white) {
             // White kingside
             if (castling->get(true, true) && 
-                is_empty(board[make_square(5, 0)]) && is_empty(board[make_square(6, 0)])) {
+                is_piece_empty(board[make_square(5, 0)]) && is_piece_empty(board[make_square(6, 0)])) {
                 moves.emplace_back(make_square(4, 0), make_square(6, 0));
             }
             // White queenside  
             if (castling->get(true, false) && 
-                is_empty(board[make_square(1, 0)]) && is_empty(board[make_square(2, 0)]) && 
-                is_empty(board[make_square(3, 0)])) {
+                is_piece_empty(board[make_square(1, 0)]) && is_piece_empty(board[make_square(2, 0)]) && 
+                is_piece_empty(board[make_square(3, 0)])) {
                 moves.emplace_back(make_square(4, 0), make_square(2, 0));
             }
         } else {
             // Black kingside
             if (castling->get(false, true) && 
-                is_empty(board[make_square(5, 7)]) && is_empty(board[make_square(6, 7)])) {
+                is_piece_empty(board[make_square(5, 7)]) && is_piece_empty(board[make_square(6, 7)])) {
                 moves.emplace_back(make_square(4, 7), make_square(6, 7));
             }
             // Black queenside
             if (castling->get(false, false) && 
-                is_empty(board[make_square(1, 7)]) && is_empty(board[make_square(2, 7)]) && 
-                is_empty(board[make_square(3, 7)])) {
+                is_piece_empty(board[make_square(1, 7)]) && is_piece_empty(board[make_square(2, 7)]) && 
+                is_piece_empty(board[make_square(3, 7)])) {
                 moves.emplace_back(make_square(4, 7), make_square(2, 7));
             }
         }
@@ -266,14 +271,14 @@ void generate_pawn_moves(const Board& board, int from, bool white, vector<Move>&
     if (in_bounds(from_file, forward_rank)) {
         int forward_sq = make_square(from_file, forward_rank);
         
-        if (is_empty(board[forward_sq])) {
+        if (is_piece_empty(board[forward_sq])) {
             moves.emplace_back(from, forward_sq);
             
             // Double push from start
             if (from_rank == start_rank) {
                 int double_rank = from_rank + 2 * direction;
                 int double_sq = make_square(from_file, double_rank);
-                if (is_empty(board[double_sq])) {
+                if (is_piece_empty(board[double_sq])) {
                     moves.emplace_back(from, double_sq);
                 }
             }
@@ -290,7 +295,7 @@ void generate_pawn_moves(const Board& board, int from, bool white, vector<Move>&
             Piece target = board[cap_sq];
             
             // Normal capture
-            if (!is_empty(target) && is_color(target, !white)) {
+            if (!is_piece_empty(target) && is_color(target, !white)) {
                 moves.emplace_back(from, cap_sq);
             }
             
@@ -397,7 +402,7 @@ bool is_square_attacked(const Board& board, int square, bool by_white) {
         
         while (in_bounds(f, r)) {
             Piece p = board[make_square(f, r)];
-            if (!is_empty(p)) {
+            if (!is_piece_empty(p)) {
                 if (p == enemy_rook || p == enemy_queen) return true;
                 break;
             }
@@ -415,7 +420,7 @@ bool is_square_attacked(const Board& board, int square, bool by_white) {
         
         while (in_bounds(f, r)) {
             Piece p = board[make_square(f, r)];
-            if (!is_empty(p)) {
+            if (!is_piece_empty(p)) {
                 if (p == enemy_bishop || p == enemy_queen) return true;
                 break;
             }
@@ -539,7 +544,7 @@ double evaluate_position(const Board& board) {
     
     for (int sq = 0; sq < 64; ++sq) {
         Piece p = board[sq];
-        if (is_empty(p)) continue;
+        if (is_piece_empty(p)) continue;
         
         double value = piece_value(p);
         score += is_white(p) ? value : -value;
@@ -557,7 +562,7 @@ int move_score_for_ordering(const Board& board, const Move& move) {
     
     // Captures: MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
     Piece captured = board[move.to];
-    if (!is_empty(captured)) {
+    if (!is_piece_empty(captured)) {
         score += 10 * piece_value(captured) - piece_value(board[move.from]);
     }
     
@@ -739,8 +744,8 @@ tuple<Move, double> engine_search(const GameState& state, bool white, int depth,
             if (time_limit > 0) {
                 auto elapsed = chrono::duration<double>(chrono::steady_clock::now() - start_time).count();
                 if (elapsed > time_limit) {
-                    stop_flag.store(true);
-                    break;
+                    // stop_flag.store(true);
+                    // break;
                 }
             }
             
@@ -866,3 +871,59 @@ int main() {
     return 0;
 }
 */
+
+std::map<std::string, std::string> parse_board_json(const char* json) {
+    std::map<std::string, std::string> board_map;
+    std::string s(json);
+
+    size_t pos = 0;
+    while (pos < s.size()) {
+        // Skip whitespace and { , }
+        while (pos < s.size() && (isspace(s[pos]) || s[pos] == '{' || s[pos] == ',' || s[pos] == '}'))
+            pos++;
+
+        if (pos >= s.size()) break;
+
+        // Parse key
+        if (s[pos] != '"') break;
+        size_t key_start = ++pos;
+        size_t key_end = s.find('"', key_start);
+        if (key_end == std::string::npos) break;
+        std::string key = s.substr(key_start, key_end - key_start);
+        pos = key_end + 1;
+
+        // Skip colon and whitespace
+        while (pos < s.size() && (isspace(s[pos]) || s[pos] == ':')) pos++;
+
+        // Parse value
+        if (pos >= s.size() || s[pos] != '"') break;
+        size_t val_start = ++pos;
+        size_t val_end = s.find('"', val_start);
+        if (val_end == std::string::npos) break;
+        std::string val = s.substr(val_start, val_end - val_start);
+        pos = val_end + 1;
+
+        board_map[key] = val;
+    }
+
+    return board_map;
+}
+
+extern "C" __declspec(dllexport)
+void get_best_move_c(const char* board_json, const char* color,
+                     int depth, double time_limit, int max_workers,
+                     char* move_out, double* score_out) {
+
+    std::string col(color);
+
+    // Parse board JSON with our own parser
+    std::map<std::string, std::string> board_map = parse_board_json(board_json);
+
+    auto result = engine_search_legacy(board_map, col, depth, time_limit, max_workers);
+
+    std::string best_move = std::get<0>(result);
+    double score = std::get<2>(result);
+
+    strcpy(move_out, best_move.c_str());
+    *score_out = score;
+}
