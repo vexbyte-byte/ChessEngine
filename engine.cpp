@@ -14,7 +14,7 @@
 #include <exception>
 #include <any>
 #include <queue>
-// #include <json/json.h>      // If using JsonCpp
+// #include </.h>      // If using Cpp
 #include <cstring>          // <- FIX for strcpy
 
 
@@ -1276,7 +1276,7 @@ tuple<string, string, double> engine_search(
     for (auto &th : processes) {
         if (th.joinable()) {
             // give small time slice to allow thread to finish
-            // we can't forcefully terminate std::thread in portable C++ - we signal via master_stop_event
+            // we can't forcefully terminate thread in portable C++ - we signal via master_stop_event
             // join with short timeout isn't available; so just join (threads should respect master_stop_event and exit soon)
             try {
                 th.join();
@@ -1560,18 +1560,19 @@ void get_best_move(
 }
 
 
+
 /*
 extern "C" __declspec(dllexport)
 void get_best_move(
-    const char* board_json,   // 64 items serialized
+    const char* board_,   // 64 items serialized
     const char* color,        // "white" / "black"
     int depth,
     char* out_from,
     char* out_to,
     double* out_score
 ) {
-    // Parse board_json into BoardMap
-    BoardMap board = parseBoard(board_json);
+    // Parse board_ into BoardMap
+    BoardMap board = parseBoard(board_);
 
     auto [from_sq, to_sq, score] = search_best_move(board, color, depth);
 
@@ -1585,18 +1586,18 @@ void get_best_move(
 /*
 extern "C" __declspec(dllexport)
 void get_best_move(
-    const char* board_json,
+    const char* board_,
     const char* color,
     int depth,
     char* out_from,
     char* out_to,
     double* out_score
 ) {
-    // 1. Parse board JSON into C++ BoardMap
-    BoardMap board = parseBoard(board_json);
+    // 1. Parse board  into C++ BoardMap
+    BoardMap board = parseBoard(board_);
 
     // 2. Make C++ string from color
-    std::string col = color;
+    string col = color;
 
     // 3. Run the engine
     auto result = engine_search(
@@ -1610,9 +1611,9 @@ void get_best_move(
         nullptr       // en-passant
     );
 
-    std::string from_sq = std::get<0>(result);
-    std::string to_sq   = std::get<1>(result);
-    double score        = std::get<2>(result);
+    string from_sq = get<0>(result);
+    string to_sq   = get<1>(result);
+    double score        = get<2>(result);
 
     // 4. Copy results back into Python buffers
     strcpy(out_from, from_sq.c_str());
