@@ -13,9 +13,12 @@
 #include <limits>
 #include <exception>
 #include <any>
+#include <queue>
 
 using namespace std;
 using BoardMap = map<string, string>;
+
+mutex return_dict_mutex; 
 
 // ----------------------
 // Thread-safe queue
@@ -1482,4 +1485,9 @@ void engine_process_main(
             continue;
         }
     } // while true
+}
+
+int main() {
+    // your engine code
+    return 0;
 }
