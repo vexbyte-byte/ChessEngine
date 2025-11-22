@@ -12,7 +12,7 @@ engine.get_best_move_c.argtypes = [
     ctypes.c_char_p,  # board_json
     ctypes.c_char_p,  # color
     ctypes.c_int,     # depth
-    ctypes.c_double,  # time_limit
+    ctypes.c_double,  # time_limit #c_double
     ctypes.c_int,     # max_workers
     ctypes.c_char_p,  # move_out
     ctypes.POINTER(ctypes.c_double)  # score_out
@@ -20,7 +20,7 @@ engine.get_best_move_c.argtypes = [
 
 engine.get_best_move_c.restype = None
 
-def GetBestMove(board_dict, color, depth=4, time_limit=None, max_workers=8):
+def GetBestMove(board_dict, color, depth=4, time_limit=0.0, max_workers=8):
     # Convert Python dict to proper JSON string
     board_json = json.dumps(board_dict)
     
@@ -43,5 +43,9 @@ def GetBestMove(board_dict, color, depth=4, time_limit=None, max_workers=8):
     move_str = move_out.value.decode()
     from_sq = move_str[:2]
     to_sq = move_str[2:4]
+
+    piece = shared.current_board_arrangement[from_sq]
+    shared.current_board_arrangement[from_sq] = None
+    shared.current_board_arrangement[to_sq] = piece
     
     return from_sq, to_sq, score_out.value
