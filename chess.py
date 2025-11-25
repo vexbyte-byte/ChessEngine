@@ -769,16 +769,16 @@ class chessboard():
             if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
 
             # legal move check
-            # if piece == "empty": raise ValueError(f"No piece at {from_square}!")
+            if piece == "empty": raise ValueError(f"No piece at {from_square}!")
             if frontend.piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {frontend.piece_color} piece.")
-            """if frontend.from_square not in legal_moves or frontend.to_square not in legal_moves[frontend.from_square]:
+            if frontend.from_square not in legal_moves or frontend.to_square not in legal_moves[frontend.from_square]:
                 if frontend.from_square in legal_moves:
                     # print(legal_moves)
                     available = ', '.join(legal_moves[frontend.from_square]) if legal_moves[frontend.from_square] else "none"
                     if cls.is_in_check(cls.current_turn): raise ValueError(f"You are in check! {piece} at {frontend.from_square} can move to: {available}")
                     else: raise ValueError(f"Illegal move! {piece} at {frontend.from_square} can move to: {available}")
                 else:
-                    raise ValueError(f"The {piece} at {frontend.from_square} has no legal moves!")"""
+                    raise ValueError(f"The {piece} at {frontend.from_square} has no legal moves!")
                     
             
             captured_piece = cls.current_board_arrangement[to_square]
@@ -1045,13 +1045,11 @@ class frontend():
             if piece == 'empty' or start == end: return
 
             if end in legal_moves[start] and frontend.current_turn == frontend.piece_color:
-                current_board[end] = piece
-                current_board[start] = 'empty'
+                # current_board[end] = piece
                 frontend.move = f'{start}{end}'
                 frontend.current_turn = 'black' if piece.startswith('white') else 'white'
-                if not frontend.engine_busy:
-                    # print('engine call')
-                    threading.Thread(target=chessboard.interactive_board, daemon=True).start()
+                # print('engine call')
+                threading.Thread(target=chessboard.interactive_board, daemon=True).start()
 
         # Main loop
         running = True
@@ -1068,6 +1066,7 @@ class frontend():
 
                     piece = current_board.get(sq)
 
+                    # universal piece selecting function
                     if piece != 'empty':
                         # Either start dragging OR select for click move
                         dragging_piece = piece
@@ -1079,8 +1078,8 @@ class frontend():
                         drag_offset_x = mx - col * square_size
                         drag_offset_y = my - row * square_size
                         print(selected_square)
-                        if not frontend.engine_busy:
-                            move_piece(selected_square, sq)
+                        # print(1)
+                        move_piece(selected_square, sq)
                     
                     # else: pass
                         # selected_square = 'empty'
@@ -1095,12 +1094,17 @@ class frontend():
                         selected_square = 'empty'
                         continue
 
-                    if dragging_piece != 'empty' and not frontend.engine_busy:
+                    # drag & drop function
+                    if dragging_piece != 'empty':
                         # highlight_square(sq)
+                        # print(2)
                         move_piece(dragging_from, sq)
                         last_move_square = sq
-                    elif selected_square != 'empty' and not frontend.engine_busy:
+                    
+                    # click & move(place) function
+                    elif selected_square != 'empty':
                         # highlight_square(sq)
+                        # print(3)
                         move_piece(selected_square, sq)
                         last_move_square = sq
 
