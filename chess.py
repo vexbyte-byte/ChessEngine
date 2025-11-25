@@ -3,7 +3,9 @@ import os
 import re
 import json
 import ctypes
-import shared
+# import shared
+import pygame
+import threading
 # from CppEngineHandler import GetBestMove
 
 red = "\033[91m"
@@ -676,7 +678,8 @@ class chessboard():
             
             # input
             try:
-                move = input(f"\n{b_green}[{cls.current_turn.upper()}] Enter your move (e.g., E2E4) or 'quit' to exit: {reset}").upper().strip()
+                move = frontend.move
+                # move = input(f"\n{b_green}[{cls.current_turn.upper()}] Enter your move (e.g., E2E4) or 'quit' to exit: {reset}").upper().strip()
                 if move == "QUIT":
                     print(f"\n{yellow}Thanks for playing!{reset}")
                     break
@@ -765,14 +768,14 @@ class chessboard():
                 if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
 
                 # legal move check
-                if piece == "empty": raise ValueError(f"No piece at {from_square}!")
-                if piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {piece_color} piece.")
-                if from_square not in legal_moves or to_square not in legal_moves[from_square]:
-                    if from_square in legal_moves:
-                        available = ', '.join(legal_moves[from_square]) if legal_moves[from_square] else "none"
-                        if cls.is_in_check(cls.current_turn): raise ValueError(f"You are in check! {piece} at {from_square} can move to: {available}")
-                        else: raise ValueError(f"Illegal move! {piece} at {from_square} can move to: {available}")
-                    else: raise ValueError(f"The {piece} at {from_square} has no legal moves!")
+                # if piece == "empty": raise ValueError(f"No piece at {from_square}!")
+                if frontend.piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {frontend.piece_color} piece.")
+                if frontend.from_square not in legal_moves or frontend.to_square not in legal_moves[frontend.from_square]:
+                    if frontend.from_square in legal_moves:
+                        available = ', '.join(legal_moves[frontend.from_square]) if legal_moves[frontend.from_square] else "none"
+                        if cls.is_in_check(cls.current_turn): raise ValueError(f"You are in check! {piece} at {frontend.from_square} can move to: {available}")
+                        else: raise ValueError(f"Illegal move! {piece} at {frontend.from_square} can move to: {available}")
+                    else: raise ValueError(f"The {piece} at {frontend.from_square} has no legal moves!")
                 
                 captured_piece = cls.current_board_arrangement[to_square]
                 cls.current_board_arrangement[to_square] = piece
@@ -859,7 +862,7 @@ class chessboard():
                 input()
             
             # update shared.py:
-            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+            # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
 
             # result returned by engines
             from_sq, to_sq, score = GetBestMove(chessboard.current_board_arrangement, "black", values.depth)
@@ -867,7 +870,7 @@ class chessboard():
             print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
 
             # update shared.py once again:
-            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+            # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
 
             # white's turn:
             cls.current_turn = "white"
@@ -907,18 +910,217 @@ class chessboard():
             # update the global board once again:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
             '''
+
+
+class frontend():
+    # values
+    move = str()
+    piece_color = str()
+    from_square = str()
+    to_square = str()
+    current_turn = 'white'
+
+    def display_screen():
+        last_move_square = 'empty'
+        # Initialize Pygame
+        pygame.init()
+
+        # Constants
+        board_size = 8
+        square_size = 80  # initial, will scale
+        light_color = (240, 217, 181)
+        dark_color = (181, 136, 99)
+        default_highlight_color = (75, 100, 75, 100)
+
+        # Screen setup
+        info = pygame.display.Info()
+        width, height = info.current_w, info.current_h
+        square_size = int((height // board_size) / 1.5)
+        screen = pygame.display.set_mode(((square_size * 8) + 300, square_size * board_size), pygame.NOFRAME)
+        pygame.display.set_caption("Chess")
+        screen.fill((100, 100, 100))  # white background
+        board_offset_x = 0 # shift right (pixels)
+        board_offset_y = 0 # shift down (pixels)
+
+        # Load pieces
+        piece_textures = {}
+        asset_folder = os.path.join(os.getcwd(), "pieces")
+        for piece in ['white_pawn', 'white_rook', 'white_knight', 'white_bishop', 'white_queen', 'white_king',
+                    'black_pawn', 'black_rook', 'black_knight', 'black_bishop', 'black_queen', 'black_king']:
+            path = os.path.join(asset_folder, f"{piece}.png")
+            img = pygame.image.load(path).convert_alpha()
+            img = pygame.transform.smoothscale(img, (square_size, square_size))
+            piece_textures[piece] = img
+
+        # Board state
+        current_board = chessboard.current_board_arrangement
+
+        # Drag & selection variables
+        dragging_piece = 'empty'
+        dragging_from = 'empty'
+        selected_square = 'empty'
+        frame_height = 40
+
+        def highlight_square(square, color=(75, 100, 75, 255)): # rgba format
+            """Draw a semi-transparent highlight on a square."""
+            if square == 'empty':
+                return
+            col = ord(square[0].upper()) - ord('A')
+            row = 8 - int(square[1])
+            highlight_rect = pygame.Rect(
+                board_offset_x + col*square_size,
+                board_offset_y + row*square_size,
+                square_size,
+                square_size
+            )
+            s = pygame.Surface((square_size, square_size), pygame.SRCALPHA)  # allows alpha
+            s.fill(color)
+            screen.blit(s, highlight_rect.topleft)
+        
+        def draw_board():
+            # nonlocal last_move_square
+            # Draw squares
+            for row in range(board_size):
+                for col in range(board_size):
+                    rect = pygame.Rect(
+                        board_offset_x + col*square_size,
+                        board_offset_y + row*square_size,
+                        square_size,
+                        square_size
+                    )
+                    color = light_color if (row + col) % 2 == 0 else dark_color
+                    pygame.draw.rect(screen, color, rect)
+
+            # Draw pieces
+            for square, piece in current_board.items():
+                if piece == 'empty':
+                    continue
+                if dragging_piece == piece and square == dragging_from:
+                    pass
+                col = ord(square[0]) - ord('A')
+                row = 8 - int(square[1])
+                screen.blit(piece_textures[piece], (board_offset_x + col*square_size, board_offset_y + row*square_size))
+
+            # Draw persistent highlight for selected square
+
+            if selected_square != 'empty':
+                highlight_square(selected_square, color=default_highlight_color)  # lighter green, semi-transparent
             
+            if last_move_square != 'empty':
+                highlight_square(last_move_square, color=default_highlight_color)
+
+            # Draw dragging piece on top
+            if dragging_piece != 'empty':
+                mx, my = pygame.mouse.get_pos()
+                screen.blit(
+                    piece_textures[dragging_piece],
+                    (mx - drag_offset_x, my - drag_offset_y)
+                )
+
+
+
+        def get_square_from_mouse(pos):
+            x, y = pos
+            col = int(x // square_size)
+            row = int(y // square_size)
+            if col < 0 or col > 7 or row < 0 or row > 7:
+                return 'empty'
+            return f"{chr(ord('a') + col)}{8 - row}"
+
+        def move_piece(start, end):
+            # print(start, end)
+            frontend.from_square = start
+            frontend.to_square = end
+            piece = current_board.get(start)
+            frontend.piece_color = 'white' if piece.startswith('white') else 'black'
+            
+            if end in chessboard.generate_legal_moves()[start] and frontend.current_turn == frontend.piece_color:
+                if piece == 'empty':
+                    return
+                current_board[start] = 'empty'
+                current_board[end] = piece
+                frontend.move = f'{start}{end}'
+                if start != end:
+                    frontend.current_turn = 'black' if piece.startswith('white') else 'white'
+                    threading.Thread(target=chessboard.interactive_board).start()
+
+        # Main loop
+        running = True
+        clock = pygame.time.Clock()
+        while running:
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
+                    running = False
+
+                # Mouse click / start drag or click
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    sq = get_square_from_mouse(event.pos).upper()
+                    if sq == 'empty': continue
+
+                    piece = current_board.get(sq)
+
+                    if piece != 'empty':
+                        # Either start dragging OR select for click move
+                        dragging_piece = piece
+                        dragging_from = sq
+                        selected_square = sq  # mark as selected for click move
+                        mx, my = event.pos
+                        col = ord(sq[0]) - ord('A')
+                        row = 8 - int(sq[1])
+                        drag_offset_x = mx - col * square_size
+                        drag_offset_y = my - row * square_size
+                        print(selected_square)
+                        move_piece(selected_square, sq)
+                    
+                    # else: pass
+                        # selected_square = 'empty'
+                        
+
+                # Mouse release / drop or click move
+                if event.type == pygame.MOUSEBUTTONUP and event.button == 1:
+                    sq = get_square_from_mouse(event.pos).upper()
+                    if sq == 'empty':
+                        dragging_piece = 'empty'
+                        dragging_from = 'empty'
+                        selected_square = 'empty'
+                        continue
+
+                    if dragging_piece != 'empty':
+                        # highlight_square(sq)
+                        move_piece(dragging_from, sq)
+                        last_move_square = sq
+                    elif selected_square != 'empty':
+                        # highlight_square(sq)
+                        move_piece(selected_square, sq)
+                        last_move_square = sq
+
+                    # Reset everything
+                    dragging_piece = 'empty'
+                    dragging_from = 'empty'
+                    # selected_square = 'empty' # dont reset this
+
+
+            draw_board()
+            pygame.display.flip()
+            clock.tick(60)
+            # break
+
+        pygame.quit()
+
 
 if __name__ == "__main__":
     utils.clear_screen()
-    print(f"{b_green}{'='*50}")
-    print(f"{'COMMAND-LINE CHESS GAME':^50}")
-    print(f"{'='*50}{reset}\n")
-    print(f"{yellow}How to play:{reset}")
-    print(f"  - White pieces are shown in {b_green}GREEN{reset}")
-    print(f"  - Black pieces are shown in {red}RED{reset}")
-    print(f"  - Enter moves in format: E2E4 (from square to square)")
-    print(f"  - Type 'quit' to exit the game\n")
-    input(f"{yellow}Press Enter to start...{reset}")
+    # print(f"{b_green}{'='*50}")
+    # print(f"{'COMMAND-LINE CHESS GAME':^50}")
+    # print(f"{'='*50}{reset}\n")
+    # print(f"{yellow}How to play:{reset}")
+    # print(f"  - White pieces are shown in {b_green}GREEN{reset}")
+    # print(f"  - Black pieces are shown in {red}RED{reset}")
+    # print(f"  - Enter moves in format: E2E4 (from square to square)")
+    # print(f"  - Type 'quit' to exit the game\n")
+    # input(f"{yellow}Press Enter to start...{reset}")
+
     # mainloop
-    chessboard.interactive_board()
+    threading.Thread(target=chessboard.interactive_board).start()
+    # chessboard.interactive_board()
+    frontend.display_screen()
