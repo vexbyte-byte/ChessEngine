@@ -18,8 +18,8 @@ square_size = int((height // board_size) / 1.5)
 screen = pygame.display.set_mode(((square_size * 8) + 300, square_size * board_size), pygame.NOFRAME)
 pygame.display.set_caption("Chess")
 screen.fill((100, 100, 100))  # white background
-board_offset_x = 50  # shift right (pixels)
-board_offset_y = 100 # shift down (pixels)
+board_offset_x = 0 # shift right (pixels)
+board_offset_y = 0 # shift down (pixels)
 
 # Load pieces
 piece_textures = {}
@@ -38,8 +38,7 @@ current_board = shared.board_arrangement
 dragging_piece = None
 dragging_from = None
 selected_square = None
-drag_offset_x = 0
-drag_offset_y = 0
+frame_height = 40
 
 def draw_board():
     # Draw squares
