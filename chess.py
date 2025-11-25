@@ -596,10 +596,11 @@ class chessboard():
 
     @classmethod
     def interactive_board(cls):
+        current_color = frontend.current_turn
         utils.clear_screen()
         last_move = None
         status_message = None
-
+        frontend.engine_busy = True
         # CppEngineHandler.py
         path = os.getcwd()
         # quit()
@@ -641,275 +642,278 @@ class chessboard():
             piece = chessboard.current_board_arrangement[from_sq]
             chessboard.current_board_arrangement[to_sq] = piece
             chessboard.current_board_arrangement[from_sq] = "empty"
+            frontend.current_turn = 'black' if current_color == 'white' else 'white'
 
             return from_sq, to_sq, score.value
         
-        while True:
-            if cls.is_checkmate(cls.current_turn):
-                utils.clear_screen()
-                cls.display_board(last_move)
-                winner = "BLACK" if cls.current_turn == "white" else "WHITE"
-                print(f"\n{red}{'='*50}")
-                print(f"{red}CHECKMATE! {winner} WINS!{reset}")
-                print(f"{red}{'='*50}{reset}\n")
-                break
+        if cls.is_checkmate(cls.current_turn):
+            utils.clear_screen()
+            cls.display_board(last_move)
+            winner = "BLACK" if cls.current_turn == "white" else "WHITE"
+            print(f"\n{red}{'='*50}")
+            print(f"{red}CHECKMATE! {winner} WINS!{reset}")
+            print(f"{red}{'='*50}{reset}\n")
+            quit()
+        
+        if cls.is_stalemate(cls.current_turn):
+            utils.clear_screen()
+            cls.display_board(last_move)
+            print(f"\n{yellow}{'='*50}")
+            print(f"{yellow}STALEMATE! The game is a draw!{reset}")
+            print(f"{yellow}{'='*50}{reset}\n")
+            quit()
+        
+        if cls.is_in_check(cls.current_turn): status_message = f"{cls.current_turn.upper()} IS IN CHECK!"
+        else: status_message = None
+        
+        cls.display_board(last_move, status_message)
+        legal_moves = cls.generate_legal_moves()
+
+        # reset squares under attack:
+        chessboard.white_current_square_under_attack = set()
+        chessboard.black_current_square_under_attack = set()
+        # generate squares under attack once-again:
+        chessboard.check_current_squares_under_attack(legal_moves)
+        # print(chessboard.white_current_square_under_attack)
+        # print(chessboard.black_current_square_under_attack)
+        
+        # input
+        try:
+            move = frontend.move
+            # move = input(f"\n{b_green}[{cls.current_turn.upper()}] Enter your move (e.g., E2E4) or 'quit' to exit: {reset}").upper().strip()
+            if move == "QUIT":
+                print(f"\n{yellow}Thanks for playing!{reset}")
+                quit()
             
-            if cls.is_stalemate(cls.current_turn):
-                utils.clear_screen()
-                cls.display_board(last_move)
-                print(f"\n{yellow}{'='*50}")
-                print(f"{yellow}STALEMATE! The game is a draw!{reset}")
-                print(f"{yellow}{'='*50}{reset}\n")
-                break
+            if not re.match(r"^[A-H][1-8][A-H][1-8]([QNRB])?$", move): raise ValueError("Invalid format! Use format like E2E4")
             
-            if cls.is_in_check(cls.current_turn): status_message = f"{cls.current_turn.upper()} IS IN CHECK!"
-            else: status_message = None
+            from_square = move[:2]
+            to_square = move[2:4]
+
+            # piece name
+            piece = cls.current_board_arrangement[from_square]
+            # piece color (our move, not the bot's move)
+            piece_color = "white" if piece.startswith("white") else "black"
+
+            # temporary (debugging purpose only)
+            # values.after_en_passant = 'E6' # temporary only.
+            # values.bot_to_square = 'E5' # this is where the bot move his pawn to, temporary only.
+            # values.bot_from_square = 'E7'
+
+            # handle En-passant:
+            if piece.endswith('pawn'):
+                # user playing as white
+                if piece_color == 'white': 
+                    # we know user wants to en-passant (REPLACE == WITH != LATER)
+                    if from_square[0] != to_square[0]: # check if pawn moved to different file
+                        if from_square[1] == '5': 
+                            # values.after_en_passant is where we can En-passant to.
+                            # values.after_en_passant is a type (coordinate): eg. E6
+                            if values.after_en_passant:
+                                if to_square == values.after_en_passant:
+                                    if values.bot_from_square[1] == '7':
+                                        if values.bot_to_square[1] == '5':
+                                            neighbor = chessboard.horizontal_neighbors(values.bot_to_square)
+                                            if from_square in neighbor:
+                                                chessboard.current_board_arrangement[to_square] = 'white_pawn'
+                                                chessboard.current_board_arrangement[from_square] = 'empty'
+                                                # remove captured pawn
+                                                chessboard.current_board_arrangement[values.bot_to_square] = 'empty'
+                
+                elif piece_color == 'black':
+                    # we know user wants to en-passant (REPLACE == WITH != LATER)
+                    if from_square[0] != to_square[0]: # check if pawn moved to different file
+                        if from_square[1] == '4':
+                            # values.after_en_passant is where we can En-passant to.
+                            # values.after_en_passant is a type (coordinate): eg. E6
+                            if values.after_en_passant:
+                                if to_square == values.after_en_passant:
+                                    if values.bot_from_square[1] == '2':
+                                        if values.bot_to_square[1] == '4':
+                                            neighbor = chessboard.horizontal_neighbors(values.bot_to_square)
+                                            if from_square in neighbor:
+                                                chessboard.current_board_arrangement[to_square] = 'black_pawn'
+                                                chessboard.current_board_arrangement[from_square] = 'empty'
+                                                # remove captured pawn
+                                                chessboard.current_board_arrangement[values.bot_to_square] = 'empty'
             
-            cls.display_board(last_move, status_message)
-            legal_moves = cls.generate_legal_moves()
-
-            # reset squares under attack:
-            chessboard.white_current_square_under_attack = set()
-            chessboard.black_current_square_under_attack = set()
-            # generate squares under attack once-again:
-            chessboard.check_current_squares_under_attack(legal_moves)
-            # print(chessboard.white_current_square_under_attack)
-            # print(chessboard.black_current_square_under_attack)
             
-            # input
-            try:
-                move = frontend.move
-                # move = input(f"\n{b_green}[{cls.current_turn.upper()}] Enter your move (e.g., E2E4) or 'quit' to exit: {reset}").upper().strip()
-                if move == "QUIT":
-                    print(f"\n{yellow}Thanks for playing!{reset}")
-                    break
-                
-                if not re.match(r"^[A-H][1-8][A-H][1-8]([QNRB])?$", move): raise ValueError("Invalid format! Use format like E2E4")
-                
-                from_square = move[:2]
-                to_square = move[2:4]
-
-                # piece name
-                piece = cls.current_board_arrangement[from_square]
-                # piece color (our move, not the bot's move)
-                piece_color = "white" if piece.startswith("white") else "black"
-
-                # temporary (debugging purpose only)
-                # values.after_en_passant = 'E6' # temporary only.
-                # values.bot_to_square = 'E5' # this is where the bot move his pawn to, temporary only.
-                # values.bot_from_square = 'E7'
-
-                # handle En-passant:
-                if piece.endswith('pawn'):
-                    # user playing as white
-                    if piece_color == 'white': 
-                        # we know user wants to en-passant (REPLACE == WITH != LATER)
-                        if from_square[0] != to_square[0]: # check if pawn moved to different file
-                            if from_square[1] == '5': 
-                                # values.after_en_passant is where we can En-passant to.
-                                # values.after_en_passant is a type (coordinate): eg. E6
-                                if values.after_en_passant:
-                                    if to_square == values.after_en_passant:
-                                        if values.bot_from_square[1] == '7':
-                                            if values.bot_to_square[1] == '5':
-                                                neighbor = chessboard.horizontal_neighbors(values.bot_to_square)
-                                                if from_square in neighbor:
-                                                    chessboard.current_board_arrangement[to_square] = 'white_pawn'
-                                                    chessboard.current_board_arrangement[from_square] = 'empty'
-                                                    # remove captured pawn
-                                                    chessboard.current_board_arrangement[values.bot_to_square] = 'empty'
-                    
-                    elif piece_color == 'black':
-                        # we know user wants to en-passant (REPLACE == WITH != LATER)
-                        if from_square[0] != to_square[0]: # check if pawn moved to different file
-                            if from_square[1] == '4':
-                                # values.after_en_passant is where we can En-passant to.
-                                # values.after_en_passant is a type (coordinate): eg. E6
-                                if values.after_en_passant:
-                                    if to_square == values.after_en_passant:
-                                        if values.bot_from_square[1] == '2':
-                                            if values.bot_to_square[1] == '4':
-                                                neighbor = chessboard.horizontal_neighbors(values.bot_to_square)
-                                                if from_square in neighbor:
-                                                    chessboard.current_board_arrangement[to_square] = 'black_pawn'
-                                                    chessboard.current_board_arrangement[from_square] = 'empty'
-                                                    # remove captured pawn
-                                                    chessboard.current_board_arrangement[values.bot_to_square] = 'empty'
-                
-                
-                # print(chessboard.horizontal_neighbors(values.after_en_passant))
+            # print(chessboard.horizontal_neighbors(values.after_en_passant))
 
 
-                """
-                # handle En-passant:
-                for piece_coordinates in chessboard.current_board_arrangement:
-                    if piece_color == 'white':
-                        if values.after_en_passant: # values.after_en_passant is a type (coordinate): eg. E4
-                            if chessboard.current_board_arrangement[values.after_en_passant].startswith('black'):
-                                ..."""
+            """
+            # handle En-passant:
+            for piece_coordinates in chessboard.current_board_arrangement:
+                if piece_color == 'white':
+                    if values.after_en_passant: # values.after_en_passant is a type (coordinate): eg. E4
+                        if chessboard.current_board_arrangement[values.after_en_passant].startswith('black'):
+                            ..."""
 
-                # record for rook moved
-                if from_square == 'A1': chessboard.castling_rights['white_queenside'] = False
-                if from_square == 'H1': chessboard.castling_rights['white_kingside'] = False
-                if from_square == 'A8': chessboard.castling_rights['black_queenside'] = False
-                if from_square == 'H8': chessboard.castling_rights['black_kingside'] = False
+            # record for rook moved
+            if from_square == 'A1': chessboard.castling_rights['white_queenside'] = False
+            if from_square == 'H1': chessboard.castling_rights['white_kingside'] = False
+            if from_square == 'A8': chessboard.castling_rights['black_queenside'] = False
+            if from_square == 'H8': chessboard.castling_rights['black_kingside'] = False
 
-                # white castling
-                if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
-                    legal = chessboard.handle_castle(move, from_square, to_square)
-                    if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
-                    # record for king moved (must be handled after handle castling)
-                    if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
-                    if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
-                    raise AttributeError()
-                
-                # record for king moved once again (must be handled after handle castling)
+            # white castling
+            if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
+                legal = chessboard.handle_castle(move, from_square, to_square)
+                if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
+                # record for king moved (must be handled after handle castling)
                 if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
                 if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
-
-                # legal move check
-                # if piece == "empty": raise ValueError(f"No piece at {from_square}!")
-                if frontend.piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {frontend.piece_color} piece.")
-                if frontend.from_square not in legal_moves or frontend.to_square not in legal_moves[frontend.from_square]:
-                    if frontend.from_square in legal_moves:
-                        available = ', '.join(legal_moves[frontend.from_square]) if legal_moves[frontend.from_square] else "none"
-                        if cls.is_in_check(cls.current_turn): raise ValueError(f"You are in check! {piece} at {frontend.from_square} can move to: {available}")
-                        else: raise ValueError(f"Illegal move! {piece} at {frontend.from_square} can move to: {available}")
-                    else: raise ValueError(f"The {piece} at {frontend.from_square} has no legal moves!")
-                
-                captured_piece = cls.current_board_arrangement[to_square]
-                cls.current_board_arrangement[to_square] = piece
-                cls.current_board_arrangement[from_square] = "empty"
-                
-                move_notation = f"{from_square}{to_square}"
-                if captured_piece != "empty": move_notation += f" (captured {captured_piece})"
-                
-                cls.move_history.append(move_notation)
-                last_move = move_notation
-                cls.current_turn = "black" if cls.current_turn == "white" else "white"
-
-                # pawn promotion:
-                promotion_list = {'Q': "queen", 'N': "knight", 'R': "rook", 'B': "bishop"}
-                piece_to_promote = None
-
-                if len(move) == 5: piece_to_promote = move[4]
-
-                # white
-                if piece.endswith('pawn'):
-                    if piece_color == 'white':
-                        if from_square.endswith('7'):
-                            if to_square.endswith('8'):
-                                if piece_to_promote:
-                                    if piece.endswith('pawn'):
-                                        chessboard.current_board_arrangement[to_square] = f'white_{promotion_list[piece_to_promote]}'
-                                else: raise AssertionError('white')
-
-                    # black
-                    elif piece_color == 'black':
-                        if from_square.endswith('2'):
-                            if to_square.endswith('1'):
-                                if piece_to_promote:
-                                    if piece.endswith('pawn'):
-                                        chessboard.current_board_arrangement[to_square] = f'black_{promotion_list[piece_to_promote]}'
-                                else: raise AssertionError('black')
-                # reset
-                piece_to_promote = None
-
-                # re-print board 
-                utils.clear_screen()
-                chessboard.display_board()
+                raise AttributeError()
             
-            # illegal move handling
-            except ValueError as e:
-                print(f"\n{red}Error: {e}{reset}")
-                input(f"\n{yellow}Press Enter to continue...{reset}")
-                utils.clear_screen()
-                cls.current_turn = "white"
-                continue
+            # record for king moved once again (must be handled after handle castling)
+            if from_square == 'E1': chessboard.castling_rights['white_king_moved'] = True
+            if from_square == 'E8': chessboard.castling_rights['black_king_moved'] = True
 
-            # skipped from above
-            except KeyError: 
-                # re-print board 
-                utils.clear_screen()
-                chessboard.display_board()
-                print(f"{red}[!] {yellow}Illegal Move, cannot castle!")
-                input('\nPress Enter To Continue . . . ')
-                cls.current_turn = "white"
-                continue
-
-            except AssertionError as color:
-                utils.clear_screen()
-                chessboard.current_board_arrangement[to_square] = captured_piece
-                chessboard.current_board_arrangement[from_square] = f'{color}_pawn'
-                print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
-                print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
-                print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
-                input('\nPress Enter To Continue . . . ')
-                cls.current_turn = 'white'
-                continue
-
-            except AttributeError:
-                utils.clear_screen()
-                chessboard.display_board()
+            # legal move check
+            # if piece == "empty": raise ValueError(f"No piece at {from_square}!")
+            if frontend.piece_color != cls.current_turn: raise ValueError(f"It's {cls.current_turn}'s turn! You selected a {frontend.piece_color} piece.")
+            """if frontend.from_square not in legal_moves or frontend.to_square not in legal_moves[frontend.from_square]:
+                if frontend.from_square in legal_moves:
+                    # print(legal_moves)
+                    available = ', '.join(legal_moves[frontend.from_square]) if legal_moves[frontend.from_square] else "none"
+                    if cls.is_in_check(cls.current_turn): raise ValueError(f"You are in check! {piece} at {frontend.from_square} can move to: {available}")
+                    else: raise ValueError(f"Illegal move! {piece} at {frontend.from_square} can move to: {available}")
+                else:
+                    raise ValueError(f"The {piece} at {frontend.from_square} has no legal moves!")"""
+                    
             
-            # user exit game
-            except KeyboardInterrupt:
-                print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
-                break
-
-            except Exception as e:
-                print(f'{red}[!]', e)
-                input()
+            captured_piece = cls.current_board_arrangement[to_square]
+            cls.current_board_arrangement[to_square] = piece
+            cls.current_board_arrangement[from_square] = "empty"
             
-            # update shared.py:
-            # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+            move_notation = f"{from_square}{to_square}"
+            if captured_piece != "empty": move_notation += f" (captured {captured_piece})"
+            
+            cls.move_history.append(move_notation)
+            last_move = move_notation
+            cls.current_turn = "black" if cls.current_turn == "white" else "white"
 
-            # result returned by engines
-            from_sq, to_sq, score = GetBestMove(chessboard.current_board_arrangement, "black", values.depth)
+            # pawn promotion:
+            promotion_list = {'Q': "queen", 'N': "knight", 'R': "rook", 'B': "bishop"}
+            piece_to_promote = None
+
+            if len(move) == 5: piece_to_promote = move[4]
+
+            # white
+            if piece.endswith('pawn'):
+                if piece_color == 'white':
+                    if from_square.endswith('7'):
+                        if to_square.endswith('8'):
+                            if piece_to_promote:
+                                if piece.endswith('pawn'):
+                                    chessboard.current_board_arrangement[to_square] = f'white_{promotion_list[piece_to_promote]}'
+                            else: raise AssertionError('white')
+
+                # black
+                elif piece_color == 'black':
+                    if from_square.endswith('2'):
+                        if to_square.endswith('1'):
+                            if piece_to_promote:
+                                if piece.endswith('pawn'):
+                                    chessboard.current_board_arrangement[to_square] = f'black_{promotion_list[piece_to_promote]}'
+                            else: raise AssertionError('black')
+            # reset
+            piece_to_promote = None
+
+            # re-print board 
             utils.clear_screen()
-            print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
-
-            # update shared.py once again:
-            # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
-
-            # white's turn:
+            chessboard.display_board()
+        
+        # illegal move handling
+        except ValueError as e:
+            print(f"\n{red}Error: {e}{reset}")
+            input(f"\n{yellow}Press Enter to continue...{reset}")
+            utils.clear_screen()
             cls.current_turn = "white"
+            quit()
 
-            # handle En-passant
-            bot_moved_piece_name = chessboard.current_board_arrangement[from_sq] # -> e.g. black_pawn
+        # skipped from above
+        except KeyError: 
+            # re-print board 
+            utils.clear_screen()
+            chessboard.display_board()
+            print(f"{red}[!] {yellow}Illegal Move, cannot castle!")
+            input('\nPress Enter To Continue . . . ')
+            cls.current_turn = "white"
+            quit()
 
-            if bot_moved_piece_name.endswith('pawn'):
-                # bot as black:
-                if bot_moved_piece_name.startswith('black'):
-                    if from_sq[1] == '7': # eg. E7
-                        if to_sq[1] == '5': # eg. E5
-                            values.after_en_passant = f'{to_sq[0]}6' # example: to_sq: eg. E5
-                            values.bot_to_square = to_sq
-                            values.bot_from_square = from_sq
-                            
-                # bot as white:
-                elif bot_moved_piece_name.startswith('white'):
-                    if from_sq[1] == '2': # eg. E2
-                        if to_sq[1] == '4': # eg. E4
-                            values.after_en_passant = f'{to_sq[0]}3'
-                            values.bot_to_square = to_sq
-                            values.bot_from_square = from_sq
+        except AssertionError as color:
+            utils.clear_screen()
+            chessboard.current_board_arrangement[to_square] = captured_piece
+            chessboard.current_board_arrangement[from_square] = f'{color}_pawn'
+            print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
+            print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
+            print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
+            input('\nPress Enter To Continue . . . ')
+            cls.current_turn = 'white'
+            quit()
+
+        except AttributeError:
+            utils.clear_screen()
+            chessboard.display_board()
+        
+        # user exit game
+        except KeyboardInterrupt:
+            print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
+            quit()
+
+        except Exception as e:
+            print(f'{red}[!]', e)
+            input()
+        
+        # update shared.py:
+        # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+
+        # result returned by engines
+        from_sq, to_sq, score = GetBestMove(chessboard.current_board_arrangement, "black", values.depth)
+        utils.clear_screen()
+        print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
+
+        # update shared.py once again:
+        # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+
+        # white's turn:
+        cls.current_turn = "white"
+
+        # handle En-passant
+        bot_moved_piece_name = chessboard.current_board_arrangement[from_sq] # -> e.g. black_pawn
+
+        if bot_moved_piece_name.endswith('pawn'):
+            # bot as black:
+            if bot_moved_piece_name.startswith('black'):
+                if from_sq[1] == '7': # eg. E7
+                    if to_sq[1] == '5': # eg. E5
+                        values.after_en_passant = f'{to_sq[0]}6' # example: to_sq: eg. E5
+                        values.bot_to_square = to_sq
+                        values.bot_from_square = from_sq
+                        
+            # bot as white:
+            elif bot_moved_piece_name.startswith('white'):
+                if from_sq[1] == '2': # eg. E2
+                    if to_sq[1] == '4': # eg. E4
+                        values.after_en_passant = f'{to_sq[0]}3'
+                        values.bot_to_square = to_sq
+                        values.bot_from_square = from_sq
 
 
-            # handle bot's moves (done)
-            # print(chessboard.current_board_arrangement[from_sq])
-            # quit()
+        # handle bot's moves (done)
+        # print(chessboard.current_board_arrangement[from_sq])
+        # quit()
 
-            # update current board
-            # chessboard.current_board_arrangement = shared.current_board_arrangement.copy()
-            '''
-            bot_move_initial_piece_name = chessboard.current_board_arrangement[from_sq]
-            chessboard.current_board_arrangement[from_sq] = "empty"
-            chessboard.current_board_arrangement[to_sq] = bot_move_initial_piece_name
+        # update current board
+        # chessboard.current_board_arrangement = shared.current_board_arrangement.copy()
+        '''
+        bot_move_initial_piece_name = chessboard.current_board_arrangement[from_sq]
+        chessboard.current_board_arrangement[from_sq] = "empty"
+        chessboard.current_board_arrangement[to_sq] = bot_move_initial_piece_name
 
-            # update the global board once again:
-            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
-            '''
+        # update the global board once again:
+        shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
+        '''
 
 
 class frontend():
@@ -919,6 +923,7 @@ class frontend():
     from_square = str()
     to_square = str()
     current_turn = 'white'
+    engine_busy = False
 
     def display_screen():
         last_move_square = 'empty'
@@ -926,7 +931,7 @@ class frontend():
         pygame.init()
 
         # Constants
-        board_size = 8
+        board_size = 8 # 8x8 grid
         square_size = 80  # initial, will scale
         light_color = (240, 217, 181)
         dark_color = (181, 136, 99)
@@ -1028,21 +1033,25 @@ class frontend():
             return f"{chr(ord('a') + col)}{8 - row}"
 
         def move_piece(start, end):
+            # print('loop')
+            # return
             # print(start, end)
             frontend.from_square = start
             frontend.to_square = end
             piece = current_board.get(start)
             frontend.piece_color = 'white' if piece.startswith('white') else 'black'
             
-            if end in chessboard.generate_legal_moves()[start] and frontend.current_turn == frontend.piece_color:
-                if piece == 'empty':
-                    return
-                current_board[start] = 'empty'
+            legal_moves = chessboard.generate_legal_moves()
+            if piece == 'empty' or start == end: return
+
+            if end in legal_moves[start] and frontend.current_turn == frontend.piece_color:
                 current_board[end] = piece
+                current_board[start] = 'empty'
                 frontend.move = f'{start}{end}'
-                if start != end:
-                    frontend.current_turn = 'black' if piece.startswith('white') else 'white'
-                    threading.Thread(target=chessboard.interactive_board).start()
+                frontend.current_turn = 'black' if piece.startswith('white') else 'white'
+                if not frontend.engine_busy:
+                    # print('engine call')
+                    threading.Thread(target=chessboard.interactive_board, daemon=True).start()
 
         # Main loop
         running = True
@@ -1070,7 +1079,8 @@ class frontend():
                         drag_offset_x = mx - col * square_size
                         drag_offset_y = my - row * square_size
                         print(selected_square)
-                        move_piece(selected_square, sq)
+                        if not frontend.engine_busy:
+                            move_piece(selected_square, sq)
                     
                     # else: pass
                         # selected_square = 'empty'
@@ -1085,11 +1095,11 @@ class frontend():
                         selected_square = 'empty'
                         continue
 
-                    if dragging_piece != 'empty':
+                    if dragging_piece != 'empty' and not frontend.engine_busy:
                         # highlight_square(sq)
                         move_piece(dragging_from, sq)
                         last_move_square = sq
-                    elif selected_square != 'empty':
+                    elif selected_square != 'empty' and not frontend.engine_busy:
                         # highlight_square(sq)
                         move_piece(selected_square, sq)
                         last_move_square = sq
@@ -1121,6 +1131,6 @@ if __name__ == "__main__":
     # input(f"{yellow}Press Enter to start...{reset}")
 
     # mainloop
-    threading.Thread(target=chessboard.interactive_board).start()
+    # threading.Thread(target=chessboard.interactive_board).start()
     # chessboard.interactive_board()
     frontend.display_screen()
