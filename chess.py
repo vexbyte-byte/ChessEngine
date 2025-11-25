@@ -1,8 +1,10 @@
 # chess.py
 import os
 import re
+import json
+import ctypes
 import shared
-from CppEngineHandler import GetBestMove
+# from CppEngineHandler import GetBestMove
 
 red = "\033[91m"
 d_green = "\033[32m"
@@ -595,6 +597,50 @@ class chessboard():
         utils.clear_screen()
         last_move = None
         status_message = None
+
+        # CppEngineHandler.py
+        path = os.getcwd()
+        # quit()
+        engine = ctypes.CDLL(os.path.join(path, "engine.dll"))
+
+        engine.get_best_move.argtypes = [
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.c_int,
+            ctypes.c_char_p,
+            ctypes.c_char_p,
+            ctypes.POINTER(ctypes.c_double)
+        ]
+
+        engine.get_best_move.restype = None
+
+        def GetBestMove(board, color, depth=4):
+            board_json = json.dumps(board).encode()
+
+            from_buf = ctypes.create_string_buffer(10)
+            to_buf = ctypes.create_string_buffer(10)
+            score = ctypes.c_double()
+
+            engine.get_best_move(
+                board_json,
+                color.encode(),
+                depth,
+                from_buf,
+                to_buf,
+                ctypes.byref(score)
+            )
+
+            from_sq = from_buf.value.decode()
+            to_sq = to_buf.value.decode()
+
+            # --- update shared.py board ---
+            print(from_sq)
+            print(to_sq)
+            piece = chessboard.current_board_arrangement[from_sq]
+            chessboard.current_board_arrangement[to_sq] = piece
+            chessboard.current_board_arrangement[from_sq] = "empty"
+
+            return from_sq, to_sq, score.value
         
         while True:
             if cls.is_checkmate(cls.current_turn):
@@ -807,14 +853,21 @@ class chessboard():
             except KeyboardInterrupt:
                 print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
                 break
+
+            except Exception as e:
+                print(f'{red}[!]', e)
+                input()
             
-            # update board arrangement globally:
+            # update shared.py:
             shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
 
             # result returned by engines
-            from_sq, to_sq, score = GetBestMove(shared.current_board_arrangement, "black", values.depth)
+            from_sq, to_sq, score = GetBestMove(chessboard.current_board_arrangement, "black", values.depth)
             utils.clear_screen()
             print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
+
+            # update shared.py once again:
+            shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
 
             # white's turn:
             cls.current_turn = "white"
@@ -845,7 +898,7 @@ class chessboard():
             # quit()
 
             # update current board
-            chessboard.current_board_arrangement = shared.current_board_arrangement.copy()
+            # chessboard.current_board_arrangement = shared.current_board_arrangement.copy()
             '''
             bot_move_initial_piece_name = chessboard.current_board_arrangement[from_sq]
             chessboard.current_board_arrangement[from_sq] = "empty"
