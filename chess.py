@@ -597,7 +597,7 @@ class chessboard():
 
     @classmethod
     def interactive_board(cls):
-        current_color = frontend.current_turn
+        # current_color = frontend.current_turn
         utils.clear_screen()
         last_move = None
         status_message = None
@@ -643,7 +643,7 @@ class chessboard():
             piece = chessboard.current_board_arrangement[from_sq]
             chessboard.current_board_arrangement[to_sq] = piece
             chessboard.current_board_arrangement[from_sq] = "empty"
-            frontend.current_turn = 'black' if current_color == 'white' else 'white'
+            # frontend.current_turn = 'black' if current_color == 'white' else 'white'
             frontend.player_advantage = score.value
 
             return from_sq, to_sq, frontend.player_advantage
@@ -759,8 +759,8 @@ class chessboard():
 
             # white castling
             if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
-                print('User wants castle')
-                quit()
+                # print('User wants castle')
+                # quit()
                 legal = chessboard.handle_castle(move, from_square, to_square)
                 if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
                 # record for king moved (must be handled after handle castling)
@@ -833,7 +833,7 @@ class chessboard():
             # input(f"\n{yellow}Press Enter to continue...{reset}")
             utils.clear_screen()
             cls.current_turn = "white"
-            quit()
+            return
 
         # skipped from above
         except KeyError: 
@@ -843,7 +843,7 @@ class chessboard():
             print(f"{red}[!] {yellow}Illegal Move, cannot castle!")
             # input('\nPress Enter To Continue . . . ')
             cls.current_turn = "white"
-            quit()
+            return
 
         except AssertionError as color:
             utils.clear_screen()
@@ -854,7 +854,7 @@ class chessboard():
             print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
             # input('\nPress Enter To Continue . . . ')
             cls.current_turn = 'white'
-            quit()
+            return
 
         except AttributeError:
             utils.clear_screen()
@@ -863,11 +863,11 @@ class chessboard():
         # user exit game
         except KeyboardInterrupt:
             print(f"\n\n{yellow}Game interrupted. Thanks for playing!{reset}")
-            quit()
+            return
 
         except Exception as e:
             print(f'{red}[!]', e)
-            # input()
+            return
         
         # update shared.py:
         # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
@@ -876,6 +876,7 @@ class chessboard():
         from_sq, to_sq, score = GetBestMove(chessboard.current_board_arrangement, "black", values.depth)
         utils.clear_screen()
         print(f"Engine plays {from_sq} -> {to_sq} (score {score})")
+        frontend.bot_highlight_squares = [from_sq, to_sq]
 
         # update shared.py once again:
         # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
@@ -933,6 +934,9 @@ class frontend():
     bar_movement_speed = 0
     bar_height = 240
     speed = 20
+    bot_move_from_sq = ''
+    bot_move_to_sq = ''
+    bot_highlight_squares = []
 
     def display_screen():
         last_move_square = 'empty'
@@ -1008,8 +1012,8 @@ class frontend():
             
             # player's advantage calculation:
             advantage = round((frontend.player_advantage / 100) * -1, 2)
+            advantage = max(min(advantage, 2000), -2000)
             target_height = round(240 + frontend.player_advantage, 2)
-            advantage = max(min(advantage, 100), -100)
             advantage = round(math.tanh(advantage / 20), 2)
             # Smoothly approach target height
             if frontend.bar_height < target_height:
@@ -1053,6 +1057,10 @@ class frontend():
             if dragging_piece != 'empty':
                 mx, my = pygame.mouse.get_pos()
                 screen.blit(piece_textures[dragging_piece], (mx - drag_offset_x, my - drag_offset_y))
+            
+            for sq in frontend.bot_highlight_squares:
+                if sq != 'empty':
+                    highlight_square(sq)  # maybe yellow for bot
 
 
 
@@ -1082,7 +1090,7 @@ class frontend():
             if frontend.current_turn == frontend.piece_color:
                 # current_board[end] = piece
                 frontend.move = f'{start}{end}'
-                frontend.current_turn = 'black' if piece.startswith('white') else 'white'
+                # frontend.current_turn = 'black' if piece.startswith('white') else 'white'
                 # print('engine call')
                 threading.Thread(target=chessboard.interactive_board, daemon=True).start()
 
@@ -1093,6 +1101,7 @@ class frontend():
 
         clock = pygame.time.Clock()
         while running:
+            
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                     running = False
@@ -1170,6 +1179,7 @@ class frontend():
 
             draw_board()
             pygame.display.flip()
+            frontend.bot_highlight_squares = []
             clock.tick(60)
             # break
 
