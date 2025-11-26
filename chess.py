@@ -1,6 +1,7 @@
 # chess.py
 import os
 import re
+import math
 import json
 import ctypes
 # import shared
@@ -575,7 +576,7 @@ class chessboard():
         # handle exception
         except ValueError as e: 
             print(f'{red}[!]', e)
-            input(f'\n{yellow}Press Enter To Continue . . . ')
+            # input(f'\n{yellow}Press Enter To Continue . . . ')
             return 'illegal move'
         except Exception as e: print(f"{red}[!]", e)
     
@@ -643,8 +644,9 @@ class chessboard():
             chessboard.current_board_arrangement[to_sq] = piece
             chessboard.current_board_arrangement[from_sq] = "empty"
             frontend.current_turn = 'black' if current_color == 'white' else 'white'
+            frontend.player_advantage = score.value
 
-            return from_sq, to_sq, score.value
+            return from_sq, to_sq, frontend.player_advantage
         
         if cls.is_checkmate(cls.current_turn):
             utils.clear_screen()
@@ -757,6 +759,8 @@ class chessboard():
 
             # white castling
             if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
+                print('User wants castle')
+                quit()
                 legal = chessboard.handle_castle(move, from_square, to_square)
                 if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
                 # record for king moved (must be handled after handle castling)
@@ -826,7 +830,7 @@ class chessboard():
         # illegal move handling
         except ValueError as e:
             print(f"\n{red}Error: {e}{reset}")
-            input(f"\n{yellow}Press Enter to continue...{reset}")
+            # input(f"\n{yellow}Press Enter to continue...{reset}")
             utils.clear_screen()
             cls.current_turn = "white"
             quit()
@@ -837,7 +841,7 @@ class chessboard():
             utils.clear_screen()
             chessboard.display_board()
             print(f"{red}[!] {yellow}Illegal Move, cannot castle!")
-            input('\nPress Enter To Continue . . . ')
+            # input('\nPress Enter To Continue . . . ')
             cls.current_turn = "white"
             quit()
 
@@ -848,7 +852,7 @@ class chessboard():
             print(f"{red}[!] {yellow}Illegal Move! You must specify which piece to promote.")
             print(f'{red}[!] {yellow}Use format like {d_green}E7E8{purple}Q {yellow}to promote')
             print(f'{b_green}\nQ: queen\nN: knight\nR: rook\nB: bishop')
-            input('\nPress Enter To Continue . . . ')
+            # input('\nPress Enter To Continue . . . ')
             cls.current_turn = 'white'
             quit()
 
@@ -863,7 +867,7 @@ class chessboard():
 
         except Exception as e:
             print(f'{red}[!]', e)
-            input()
+            # input()
         
         # update shared.py:
         # shared.current_board_arrangement = chessboard.current_board_arrangement.copy()
@@ -918,12 +922,17 @@ class chessboard():
 
 class frontend():
     # values
-    move = str()
-    piece_color = str()
-    from_square = str()
-    to_square = str()
+    move = ''
+    piece_color = ''
+    from_square = ''
+    to_square = ''
     current_turn = 'white'
     engine_busy = False
+    color = 'white'
+    player_advantage = 0.0
+    bar_movement_speed = 0
+    bar_height = 240
+    speed = 20
 
     def display_screen():
         last_move_square = 'empty'
@@ -943,8 +952,8 @@ class frontend():
         square_size = int((height // board_size) / 1.5)
         screen = pygame.display.set_mode(((square_size * 8) + 300, square_size * board_size), pygame.NOFRAME)
         pygame.display.set_caption("Chess")
-        screen.fill((100, 100, 100))  # white background
-        board_offset_x = 0 # shift right (pixels)
+        screen.fill((0, 0, 0))  # white background
+        board_offset_x = 40 # shift right (pixels)
         board_offset_y = 0 # shift down (pixels)
 
         # Load pieces
@@ -965,6 +974,7 @@ class frontend():
         dragging_from = 'empty'
         selected_square = 'empty'
         frame_height = 40
+        font = pygame.font.Font(None, 14)
 
         def highlight_square(square, color=(75, 100, 75, 255)): # rgba format
             """Draw a semi-transparent highlight on a square."""
@@ -995,6 +1005,31 @@ class frontend():
                     )
                     color = light_color if (row + col) % 2 == 0 else dark_color
                     pygame.draw.rect(screen, color, rect)
+            
+            # player's advantage calculation:
+            advantage = round((frontend.player_advantage / 100) * -1, 2)
+            target_height = round(240 + frontend.player_advantage, 2)
+            advantage = max(min(advantage, 100), -100)
+            advantage = round(math.tanh(advantage / 20), 2)
+            # Smoothly approach target height
+            if frontend.bar_height < target_height:
+                frontend.bar_movement_speed += frontend.speed
+                frontend.bar_height = frontend.speed * (frontend.bar_movement_speed/100)
+                if frontend.bar_height > target_height:
+                    frontend.bar_height = target_height
+            elif frontend.bar_height > target_height:
+                frontend.bar_movement_speed -= frontend.speed
+                frontend.bar_height = frontend.speed * (frontend.bar_movement_speed/100)
+                if frontend.bar_height < target_height:
+                    frontend.bar_height = target_height
+            # print(frontend.bar_height)
+
+            pygame.draw.rect(screen, (100, 100, 100), (0, 0, 40, 480))
+            pygame.draw.rect(screen, (240, 240, 240), (7, 7, 26, 466), border_radius=3)
+            pygame.draw.rect(screen, (70, 70, 70), (7, 7, 26, frontend.bar_height), border_top_left_radius=3, border_top_right_radius=3)
+            pygame.draw.rect(screen, (100, 100, 100), (520, 0, 260, 480))
+            text_surface = font.render(str(advantage), True, (0, 0, 0))  # white text
+            screen.blit(text_surface, (12, 455))
 
             # Draw pieces
             for square, piece in current_board.items():
@@ -1017,20 +1052,20 @@ class frontend():
             # Draw dragging piece on top
             if dragging_piece != 'empty':
                 mx, my = pygame.mouse.get_pos()
-                screen.blit(
-                    piece_textures[dragging_piece],
-                    (mx - drag_offset_x, my - drag_offset_y)
-                )
+                screen.blit(piece_textures[dragging_piece], (mx - drag_offset_x, my - drag_offset_y))
+
 
 
 
         def get_square_from_mouse(pos):
             x, y = pos
+            x -= board_offset_x
+            y -= board_offset_y
             col = int(x // square_size)
             row = int(y // square_size)
             if col < 0 or col > 7 or row < 0 or row > 7:
                 return 'empty'
-            return f"{chr(ord('a') + col)}{8 - row}"
+            return f"{chr(ord('A') + int(col))}{8 - int(row)}"
 
         def move_piece(start, end):
             # print('loop')
@@ -1043,8 +1078,8 @@ class frontend():
             
             legal_moves = chessboard.generate_legal_moves()
             if piece == 'empty' or start == end: return
-
-            if end in legal_moves[start] and frontend.current_turn == frontend.piece_color:
+            # end in legal_moves[start] and 
+            if frontend.current_turn == frontend.piece_color:
                 # current_board[end] = piece
                 frontend.move = f'{start}{end}'
                 frontend.current_turn = 'black' if piece.startswith('white') else 'white'
@@ -1053,11 +1088,30 @@ class frontend():
 
         # Main loop
         running = True
+        drag_offset_x = 0
+        drag_offset_y = 0
+
         clock = pygame.time.Clock()
         while running:
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                     running = False
+                
+                if chessboard.is_checkmate('white'):
+                    print('Checkmate! Black Wins.')
+                    quit()
+                
+                if chessboard.is_stalemate('white'):
+                    print('Stalemate!')
+                    quit()
+                
+                if chessboard.is_checkmate('black'):
+                    print('Checkmate! White Wins.')
+                    quit()
+                
+                if chessboard.is_stalemate('black'):
+                    print('Stalemate!')
+                    quit()
 
                 # Mouse click / start drag or click
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -1075,8 +1129,8 @@ class frontend():
                         mx, my = event.pos
                         col = ord(sq[0]) - ord('A')
                         row = 8 - int(sq[1])
-                        drag_offset_x = mx - col * square_size
-                        drag_offset_y = my - row * square_size
+                        drag_offset_x = mx - (board_offset_x + col * square_size)
+                        drag_offset_y = my - (board_offset_y + row * square_size)
                         print(selected_square)
                         # print(1)
                         move_piece(selected_square, sq)
