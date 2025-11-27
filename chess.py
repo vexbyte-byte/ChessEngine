@@ -940,6 +940,7 @@ class frontend():
     is_stalemate = False
     white_is_checkmate = False
     black_is_checkmate = False
+    user_selected_engine_level = False
 
     # frontend values
     square_length = 50
@@ -989,26 +990,28 @@ class frontend():
         dragging_from = 'empty'
         selected_square = 'empty'
         frame_height = 40
-        text_surf = pygame.font.Font(None, 30).render("Checkmate!", True, (240, 240, 240))
-        text_surf_1 = pygame.font.Font(None, 30).render("Stalemate!", True, (240, 240, 240))
-        # init_screen = pygame.font.SysFont('Arial', 30).render("Match Manager", True, (200, 200, 200))
-        init_screen_0 = pygame.font.Font(None, 50).render("Match Manager", True, (200, 200, 200))
-        init_screen_1 = pygame.font.Font(None, 25).render("Human", True, (0, 200, 0))
-        init_screen_2 = pygame.font.Font(None, 25).render("VS", True, (200, 0, 0))
-        init_screen_3 = pygame.font.Font(None, 25).render("Engine", True, (0, 200, 0))
-        init_screen_4 = pygame.font.Font(None, 20).render("Engine Level 1", True, (200, 200, 200))
-        init_screen_5 = pygame.font.Font(None, 20).render("Engine Level 2", True, (200, 200, 200))
-        init_screen_6 = pygame.font.Font(None, 20).render("Engine Level 3", True, (200, 200, 200))
-        init_screen_7 = pygame.font.Font(None, 20).render("Engine Level 4", True, (200, 200, 200))
-        init_screen_8 = pygame.font.Font(None, 20).render("Engine Level 5", True, (200, 200, 200))
-        rows, cols = 8, 8
-        start_x, start_y = frontend.def_start_square_x, frontend.def_start_square_y
-        square_size = frontend.square_length
-        light_color = (200, 240, 200)
-        dark_color = (50, 200, 50)
 
 
         def initial_screen():
+            text_surf = pygame.font.Font(None, 30).render("Checkmate!", True, (240, 240, 240))
+            text_surf_1 = pygame.font.Font(None, 30).render("Stalemate!", True, (240, 240, 240))
+            # init_screen = pygame.font.SysFont('Arial', 30).render("Match Manager", True, (200, 200, 200))
+            init_screen_0 = pygame.font.Font(None, 50).render("Match Manager", True, (200, 200, 200))
+            init_screen_1 = pygame.font.Font(None, 25).render("Human", True, (0, 200, 0))
+            init_screen_2 = pygame.font.Font(None, 25).render("VS", True, (200, 0, 0))
+            init_screen_3 = pygame.font.Font(None, 25).render("Engine", True, (0, 200, 0))
+            init_screen_4 = pygame.font.Font(None, 20).render("Engine Level 1", True, (200, 200, 200))
+            init_screen_5 = pygame.font.Font(None, 20).render("Engine Level 2", True, (200, 200, 200))
+            init_screen_6 = pygame.font.Font(None, 20).render("Engine Level 3", True, (200, 200, 200))
+            init_screen_7 = pygame.font.Font(None, 20).render("Engine Level 4", True, (200, 200, 200))
+            init_screen_8 = pygame.font.Font(None, 20).render("Engine Level 5", True, (200, 200, 200))
+            rows, cols = 8, 8
+            start_x, start_y = frontend.def_start_square_x, frontend.def_start_square_y
+            square_size = frontend.square_length
+            light_color = (200, 240, 200)
+            dark_color = (50, 200, 50)
+            selected_level = None  # store selected engine level
+
             """initial screen: user playing color, """
             # screen.blit(init_screen, (20, 10))
             screen.blit(init_screen_0, (20, 30))
@@ -1027,14 +1030,41 @@ class frontend():
             screen.blit(init_screen_7, init_screen_7.get_rect(center=(152, 335)))
             screen.blit(init_screen_8, init_screen_8.get_rect(center=(152, 395)))
 
-            # board.
+            # Store rectangles for each engine level
+            engine_buttons = [
+                pygame.Rect(30, 130, 244, 50),  # Level 1
+                pygame.Rect(30, 190, 244, 50),  # Level 2
+                pygame.Rect(30, 250, 244, 50),  # Level 3
+                pygame.Rect(30, 310, 244, 50),  # Level 4
+                pygame.Rect(30, 370, 244, 50),  # Level 5
+            ]
 
+
+            # board.
             for row in range(rows):
                 for col in range(cols):
                     # Alternate color: sum of row+col even = light, odd = dark
                     color = light_color if (row + col) % 2 == 0 else dark_color
                     rect = pygame.Rect(start_x + col*square_size, start_y + row*square_size, square_size, square_size)
                     pygame.draw.rect(screen, color, rect)
+
+            for event in pygame.event.get():
+                # if event.type == pygame.QUIT:
+                #     running = False
+
+                # Mouse click
+                if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                    mx, my = event.pos
+                    for i, button in enumerate(engine_buttons):
+                        if button.collidepoint(mx, my):
+                            selected_level = i + 1  # level 1..5
+                            print(f"Engine Level {selected_level} selected!")
+                            # optionally change button color to show selection
+            
+            for i, button in enumerate(engine_buttons):
+                color = (100, 150, 100, 50) if selected_level == i+1 else (50, 50, 50, 50)
+                # pygame.draw.rect(screen, color, button, border_radius=3)
+
             
 
         def highlight_square(square, color=(75, 100, 75, 255)): # rgba format
@@ -1172,7 +1202,9 @@ class frontend():
 
         clock = pygame.time.Clock()
         while running:
-            
+            while not frontend.user_selected_engine_level:
+                initial_screen()
+
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
                     running = False
@@ -1248,9 +1280,7 @@ class frontend():
                     dragging_from = 'empty'
                     # selected_square = 'empty' # dont reset this
 
-
-            initial_screen()
-            # draw_board()
+            draw_board()
             pygame.display.flip()
             frontend.bot_highlight_squares = []
             clock.tick(60)
