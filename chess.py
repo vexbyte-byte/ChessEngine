@@ -1039,7 +1039,6 @@ class frontend():
                 pygame.Rect(30, 370, 244, 50),  # Level 5
             ]
 
-
             # board.
             for row in range(rows):
                 for col in range(cols):
@@ -1057,13 +1056,18 @@ class frontend():
                     mx, my = event.pos
                     for i, button in enumerate(engine_buttons):
                         if button.collidepoint(mx, my):
-                            selected_level = i + 1  # level 1..5
+                            selected_level = i + 1  # level 1...5
                             print(f"Engine Level {selected_level} selected!")
+                            values.depth = selected_level
+                            frontend.user_selected_engine_level = True
                             # optionally change button color to show selection
             
             for i, button in enumerate(engine_buttons):
-                color = (100, 150, 100, 50) if selected_level == i+1 else (50, 50, 50, 50)
-                # pygame.draw.rect(screen, color, button, border_radius=3)
+                # Create a temporary surface with alpha
+                s = pygame.Surface((button.width, button.height), pygame.SRCALPHA)
+                color = (100, 150, 100, 70) if selected_level == i+1 else (50, 50, 50, 0)
+                s.fill(color)
+                screen.blit(s, button.topleft)
 
             
 
@@ -1204,6 +1208,8 @@ class frontend():
         while running:
             while not frontend.user_selected_engine_level:
                 initial_screen()
+                pygame.display.flip()
+                clock.tick(55)
 
             for event in pygame.event.get():
                 if event.type == pygame.QUIT or (event.type == pygame.KEYDOWN and event.key == pygame.K_ESCAPE):
@@ -1283,7 +1289,7 @@ class frontend():
             draw_board()
             pygame.display.flip()
             frontend.bot_highlight_squares = []
-            clock.tick(60)
+            clock.tick(55)
             # break
 
         pygame.quit()
