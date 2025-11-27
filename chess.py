@@ -604,7 +604,7 @@ class chessboard():
         frontend.engine_busy = True
         # CppEngineHandler.py
         path = os.getcwd()
-        # quit()
+        
         engine = ctypes.CDLL(os.path.join(path, "engine.dll"))
 
         engine.get_best_move.argtypes = [
@@ -638,8 +638,8 @@ class chessboard():
             to_sq = to_buf.value.decode()
 
             # --- update shared.py board ---
-            print(from_sq)
-            print(to_sq)
+            # print(from_sq)
+            # print(to_sq)
             piece = chessboard.current_board_arrangement[from_sq]
             chessboard.current_board_arrangement[to_sq] = piece
             chessboard.current_board_arrangement[from_sq] = "empty"
@@ -760,7 +760,7 @@ class chessboard():
             # white castling
             if move == "E1G1" or move == "E1C1" or move == "E8G8" or move == "E8C8":
                 # print('User wants castle')
-                # quit()
+                
                 legal = chessboard.handle_castle(move, from_square, to_square)
                 if legal == 'illegal move': raise KeyError()  # skip other checks (smart move)
                 # record for king moved (must be handled after handle castling)
@@ -907,7 +907,7 @@ class chessboard():
 
         # handle bot's moves (done)
         # print(chessboard.current_board_arrangement[from_sq])
-        # quit()
+        
 
         # update current board
         # chessboard.current_board_arrangement = shared.current_board_arrangement.copy()
@@ -937,6 +937,16 @@ class frontend():
     bot_move_from_sq = ''
     bot_move_to_sq = ''
     bot_highlight_squares = []
+    is_stalemate = False
+    white_is_checkmate = False
+    black_is_checkmate = False
+
+    # frontend values
+    square_length = 50
+    def_start_square_x = 330
+    def_start_square_y = 50
+    start_square_x = 330
+    start_square_y = 50
 
     def display_screen():
         last_move_square = 'empty'
@@ -951,20 +961,21 @@ class frontend():
         default_highlight_color = (75, 100, 75, 100)
 
         # Screen setup
-        info = pygame.display.Info()
-        width, height = info.current_w, info.current_h
+        # info = pygame.display.Info()
+        # width, height = info.current_w, info.current_h
+        width, height = 1280, 720
+        
         square_size = int((height // board_size) / 1.5)
         screen = pygame.display.set_mode(((square_size * 8) + 300, square_size * board_size), pygame.NOFRAME)
         pygame.display.set_caption("Chess")
-        screen.fill((0, 0, 0))  # white background
+        screen.fill((50, 50, 50))  # white background
         board_offset_x = 40 # shift right (pixels)
         board_offset_y = 0 # shift down (pixels)
 
         # Load pieces
         piece_textures = {}
         asset_folder = os.path.join(os.getcwd(), "pieces")
-        for piece in ['white_pawn', 'white_rook', 'white_knight', 'white_bishop', 'white_queen', 'white_king',
-                    'black_pawn', 'black_rook', 'black_knight', 'black_bishop', 'black_queen', 'black_king']:
+        for piece in ['white_pawn', 'white_rook', 'white_knight', 'white_bishop', 'white_queen', 'white_king', 'black_pawn', 'black_rook', 'black_knight', 'black_bishop', 'black_queen', 'black_king']:
             path = os.path.join(asset_folder, f"{piece}.png")
             img = pygame.image.load(path).convert_alpha()
             img = pygame.transform.smoothscale(img, (square_size, square_size))
@@ -978,7 +989,53 @@ class frontend():
         dragging_from = 'empty'
         selected_square = 'empty'
         frame_height = 40
-        font = pygame.font.Font(None, 14)
+        text_surf = pygame.font.Font(None, 30).render("Checkmate!", True, (240, 240, 240))
+        text_surf_1 = pygame.font.Font(None, 30).render("Stalemate!", True, (240, 240, 240))
+        # init_screen = pygame.font.SysFont('Arial', 30).render("Match Manager", True, (200, 200, 200))
+        init_screen_0 = pygame.font.Font(None, 50).render("Match Manager", True, (200, 200, 200))
+        init_screen_1 = pygame.font.Font(None, 25).render("Human", True, (0, 200, 0))
+        init_screen_2 = pygame.font.Font(None, 25).render("VS", True, (200, 0, 0))
+        init_screen_3 = pygame.font.Font(None, 25).render("Engine", True, (0, 200, 0))
+        init_screen_4 = pygame.font.Font(None, 20).render("Engine Level 1", True, (200, 200, 200))
+        init_screen_5 = pygame.font.Font(None, 20).render("Engine Level 2", True, (200, 200, 200))
+        init_screen_6 = pygame.font.Font(None, 20).render("Engine Level 3", True, (200, 200, 200))
+        init_screen_7 = pygame.font.Font(None, 20).render("Engine Level 4", True, (200, 200, 200))
+        init_screen_8 = pygame.font.Font(None, 20).render("Engine Level 5", True, (200, 200, 200))
+        rows, cols = 8, 8
+        start_x, start_y = frontend.def_start_square_x, frontend.def_start_square_y
+        square_size = frontend.square_length
+        light_color = (200, 240, 200)
+        dark_color = (50, 200, 50)
+
+
+        def initial_screen():
+            """initial screen: user playing color, """
+            # screen.blit(init_screen, (20, 10))
+            screen.blit(init_screen_0, (20, 30))
+            screen.blit(init_screen_1, (20, 80))
+            screen.blit(init_screen_2, (120, 80))
+            screen.blit(init_screen_3, (180, 80))
+            pygame.draw.rect(screen, (70, 70, 70), (20, 120, 264, 310), border_radius=3)
+            pygame.draw.rect(screen, (50, 50, 50), (30, 130, 244, 50), border_radius=3)
+            pygame.draw.rect(screen, (50, 50, 50), (30, 190, 244, 50), border_radius=3)
+            pygame.draw.rect(screen, (50, 50, 50), (30, 250, 244, 50), border_radius=3)
+            pygame.draw.rect(screen, (50, 50, 50), (30, 310, 244, 50), border_radius=3)
+            pygame.draw.rect(screen, (50, 50, 50), (30, 370, 244, 50), border_radius=3)
+            screen.blit(init_screen_4, init_screen_4.get_rect(center=(152, 155)))
+            screen.blit(init_screen_5, init_screen_5.get_rect(center=(152, 215)))
+            screen.blit(init_screen_6, init_screen_6.get_rect(center=(152, 275)))
+            screen.blit(init_screen_7, init_screen_7.get_rect(center=(152, 335)))
+            screen.blit(init_screen_8, init_screen_8.get_rect(center=(152, 395)))
+
+            # board.
+
+            for row in range(rows):
+                for col in range(cols):
+                    # Alternate color: sum of row+col even = light, odd = dark
+                    color = light_color if (row + col) % 2 == 0 else dark_color
+                    rect = pygame.Rect(start_x + col*square_size, start_y + row*square_size, square_size, square_size)
+                    pygame.draw.rect(screen, color, rect)
+            
 
         def highlight_square(square, color=(75, 100, 75, 255)): # rgba format
             """Draw a semi-transparent highlight on a square."""
@@ -1013,8 +1070,12 @@ class frontend():
             # player's advantage calculation:
             advantage = round((frontend.player_advantage / 100) * -1, 2)
             advantage = max(min(advantage, 2000), -2000)
-            target_height = round(240 + frontend.player_advantage, 2)
-            advantage = round(math.tanh(advantage / 20), 2)
+            target_height = max(min(round(240 + frontend.player_advantage, 2), 466), -466)
+            advantage = round(math.tanh(advantage), 2)
+
+            rad_1, rad_2 = 0, 0
+            if target_height in [466, -466]: rad_1, rad_2 = 3, 3
+
             # Smoothly approach target height
             if frontend.bar_height < target_height:
                 frontend.bar_movement_speed += frontend.speed
@@ -1030,10 +1091,22 @@ class frontend():
 
             pygame.draw.rect(screen, (100, 100, 100), (0, 0, 40, 480))
             pygame.draw.rect(screen, (240, 240, 240), (7, 7, 26, 466), border_radius=3)
-            pygame.draw.rect(screen, (70, 70, 70), (7, 7, 26, frontend.bar_height), border_top_left_radius=3, border_top_right_radius=3)
+            pygame.draw.rect(screen, (70, 70, 70), (7, 7, 26, frontend.bar_height), border_top_left_radius=3, border_top_right_radius=3, border_bottom_left_radius=rad_1, border_bottom_right_radius=rad_2)
             pygame.draw.rect(screen, (100, 100, 100), (520, 0, 260, 480))
-            text_surface = font.render(str(advantage), True, (0, 0, 0))  # white text
-            screen.blit(text_surface, (12, 455))
+            pygame.draw.rect(screen, (70, 70, 70), (530, 10, 240, 460), border_radius=3)
+            text_surface = pygame.font.Font(None, 14).render(str(advantage), True, (0, 0, 0))  # white text
+            screen.blit(text_surface, text_surface.get_rect(center=(20, 455)))
+
+            # checkmate:
+            if frontend.white_is_checkmate: 
+                screen.blit(frontend.text_surf, frontend.text_surf.get_rect(center=(645, 50)))
+                # pygame.draw.rect()
+
+            if frontend.black_is_checkmate: 
+                screen.blit(frontend.text_surf, frontend.text_surf.get_rect(center=(645, 50)))
+
+            if frontend.is_stalemate: 
+                screen.blit(frontend.text_surf_1, frontend.text_surf_1.get_rect(center=(645, 50)))
 
             # Draw pieces
             for square, piece in current_board.items():
@@ -1061,8 +1134,6 @@ class frontend():
             for sq in frontend.bot_highlight_squares:
                 if sq != 'empty':
                     highlight_square(sq)  # maybe yellow for bot
-
-
 
 
         def get_square_from_mouse(pos):
@@ -1107,20 +1178,20 @@ class frontend():
                     running = False
                 
                 if chessboard.is_checkmate('white'):
-                    print('Checkmate! Black Wins.')
-                    quit()
+                    # print('Checkmate! Black Wins.')
+                    frontend.white_is_checkmate = True
                 
                 if chessboard.is_stalemate('white'):
-                    print('Stalemate!')
-                    quit()
+                    # print('Stalemate!')
+                    frontend.is_stalemate = True
                 
                 if chessboard.is_checkmate('black'):
-                    print('Checkmate! White Wins.')
-                    quit()
+                    # print('Checkmate! White Wins.')
+                    frontend.black_is_checkmate = True
                 
                 if chessboard.is_stalemate('black'):
-                    print('Stalemate!')
-                    quit()
+                    # print('Stalemate!')
+                    frontend.is_stalemate = True
 
                 # Mouse click / start drag or click
                 if event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
@@ -1141,6 +1212,7 @@ class frontend():
                         drag_offset_x = mx - (board_offset_x + col * square_size)
                         drag_offset_y = my - (board_offset_y + row * square_size)
                         print(selected_square)
+                        # print(chessboard.pseudo_legal_move)
                         # print(1)
                         move_piece(selected_square, sq)
                     
@@ -1177,7 +1249,8 @@ class frontend():
                     # selected_square = 'empty' # dont reset this
 
 
-            draw_board()
+            initial_screen()
+            # draw_board()
             pygame.display.flip()
             frontend.bot_highlight_squares = []
             clock.tick(60)
